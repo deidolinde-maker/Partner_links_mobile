@@ -103,6 +103,12 @@ pytest --run-mode release
 - `ENABLE_PERIODIC_ARTIFACT_PURGE`
 - `PERIODIC_PURGE_EVERY`
 
+### Jenkins UI selection
+
+- Если `TARGET=domain` и `DOMAIN` оставить пустым, Jenkins предложит выбрать домен из dropdown.
+- Если `TARGET=url` и `URL` оставить пустым, Jenkins предложит выбрать URL из dropdown.
+- Списки для dropdown собираются из `config/landings.py`, поэтому новые URL и домены подхватываются автоматически после обновления репозитория.
+
 ## Обновление конфигурации
 
 Все URL и селекторы живут в `config/landings.py`.

@@ -33,6 +33,60 @@ pipeline {
     }
 
     stages {
+        stage('Select landing') {
+            steps {
+                script {
+                    def landingsSource = readFile('config/landings.py')
+
+                    def extractChoices = { String pattern ->
+                        def values = []
+                        def matcher = (landingsSource =~ pattern)
+                        matcher.each { match ->
+                            if (match.size() > 1) {
+                                values << match[1]
+                            }
+                        }
+                        return values.unique()
+                    }
+
+                    def domainChoices = extractChoices(/domain="([^"]+)"/)
+                    def urlChoices = extractChoices(/url="([^"]+)"/)
+
+                    if (env.TARGET == 'domain' && !(env.DOMAIN?.trim())) {
+                        if (!domainChoices) {
+                            error('No domains found in config/landings.py')
+                        }
+                        env.DOMAIN = input(
+                            message: 'Select domain for Jenkins run',
+                            ok: 'Use domain',
+                            parameters: [
+                                choice(
+                                    name: 'DOMAIN',
+                                    choices: domainChoices.join('\n')
+                                )
+                            ]
+                        )
+                    }
+
+                    if (env.TARGET == 'url' && !(env.URL?.trim())) {
+                        if (!urlChoices) {
+                            error('No URLs found in config/landings.py')
+                        }
+                        env.URL = input(
+                            message: 'Select landing URL for Jenkins run',
+                            ok: 'Use URL',
+                            parameters: [
+                                choice(
+                                    name: 'URL',
+                                    choices: urlChoices.join('\n')
+                                )
+                            ]
+                        )
+                    }
+                }
+            }
+        }
+
         stage('Prepare') {
             steps {
                 sh '''#!/usr/bin/env bash

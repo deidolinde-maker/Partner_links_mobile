@@ -26,8 +26,8 @@ pipeline {
     environment {
         PIP_DISABLE_PIP_VERSION_CHECK = '1'
         PYTHONUNBUFFERED = '1'
-        PLAYWRIGHT_BROWSERS_PATH = "${JENKINS_HOME}\\cache\\ms-playwright"
-        PIP_CACHE_DIR = "${JENKINS_HOME}\\cache\\pip"
+        PLAYWRIGHT_BROWSERS_PATH = "${JENKINS_HOME}/cache/ms-playwright"
+        PIP_CACHE_DIR = "${JENKINS_HOME}/cache/pip"
         PYTHON_BIN_FILE = '.python_bin'
         REQ_HASH_FILE = '.requirements.sha256'
     }
@@ -35,127 +35,135 @@ pipeline {
     stages {
         stage('Prepare') {
             steps {
-                powershell '''
-                    $ErrorActionPreference = "Stop"
-                    $reqHashFile = $env:REQ_HASH_FILE
+                sh '''#!/usr/bin/env bash
+set -euo pipefail
 
-                    Write-Host "=== Cache diagnostics ==="
-                    Write-Host "Workspace: $(Get-Location)"
-                    Write-Host "JENKINS_HOME: $env:JENKINS_HOME"
-                    Write-Host "PLAYWRIGHT_BROWSERS_PATH: $env:PLAYWRIGHT_BROWSERS_PATH"
-                    Write-Host "PIP_CACHE_DIR: $env:PIP_CACHE_DIR"
+req_hash_file="${REQ_HASH_FILE}"
+python_bin="python3"
+if ! command -v python3 >/dev/null 2>&1; then
+  python_bin="python"
+fi
 
-                    if (Test-Path ".\\.venv\\Scripts\\python.exe") {
-                        Write-Host "[VENV] Reused: .venv exists"
-                        & .\\.venv\\Scripts\\python.exe --version
-                    } else {
-                        Write-Host "[VENV] Missing: .venv will be created"
-                    }
+echo "=== Cache diagnostics ==="
+echo "Workspace: $(pwd)"
+echo "JENKINS_HOME: ${JENKINS_HOME:-}"
+echo "PLAYWRIGHT_BROWSERS_PATH: ${PLAYWRIGHT_BROWSERS_PATH}"
+echo "PIP_CACHE_DIR: ${PIP_CACHE_DIR}"
 
-                    if (Test-Path $reqHashFile) {
-                        Write-Host "[REQ_HASH] Found: $(Get-Content $reqHashFile -Raw)"
-                    } else {
-                        Write-Host "[REQ_HASH] Missing: deps install expected"
-                    }
+if [ -x ".venv/bin/python" ]; then
+  echo "[VENV] Reused: .venv exists"
+  .venv/bin/python --version
+else
+  echo "[VENV] Missing: .venv will be created"
+fi
 
-                    if (Test-Path $env:PIP_CACHE_DIR) {
-                        Write-Host "[PIP_CACHE] Found: $env:PIP_CACHE_DIR"
-                    } else {
-                        Write-Host "[PIP_CACHE] Missing: $env:PIP_CACHE_DIR"
-                    }
+if [ -f "$req_hash_file" ]; then
+  echo "[REQ_HASH] Found: $(cat "$req_hash_file")"
+else
+  echo "[REQ_HASH] Missing: deps install expected"
+fi
 
-                    if (Test-Path $env:PLAYWRIGHT_BROWSERS_PATH) {
-                        Write-Host "[PW_CACHE] Found: $env:PLAYWRIGHT_BROWSERS_PATH"
-                    } else {
-                        Write-Host "[PW_CACHE] Missing: $env:PLAYWRIGHT_BROWSERS_PATH"
-                    }
-                    Write-Host "========================="
+if [ -d "$PIP_CACHE_DIR" ]; then
+  echo "[PIP_CACHE] Found: $PIP_CACHE_DIR"
+else
+  echo "[PIP_CACHE] Missing: $PIP_CACHE_DIR"
+fi
 
-                    New-Item -ItemType Directory -Force -Path $env:PIP_CACHE_DIR | Out-Null
-                    New-Item -ItemType Directory -Force -Path $env:PLAYWRIGHT_BROWSERS_PATH | Out-Null
+if [ -d "$PLAYWRIGHT_BROWSERS_PATH" ]; then
+  echo "[PW_CACHE] Found: $PLAYWRIGHT_BROWSERS_PATH"
+else
+  echo "[PW_CACHE] Missing: $PLAYWRIGHT_BROWSERS_PATH"
+fi
+echo "========================="
 
-                    $pythonBin = ".\\.venv\\Scripts\\python.exe"
-                    if (-not (Test-Path $pythonBin)) {
-                        python -m venv .venv
-                    }
+mkdir -p "$PIP_CACHE_DIR" "$PLAYWRIGHT_BROWSERS_PATH"
 
-                    if (-not (Test-Path $pythonBin)) {
-                        python -m ensurepip --upgrade
-                        python -m venv .venv
-                    }
+if [ ! -x ".venv/bin/python" ]; then
+  "$python_bin" -m venv .venv
+fi
 
-                    if (-not (Test-Path $pythonBin)) {
-                        throw "Unable to create .venv"
-                    }
+if [ ! -x ".venv/bin/python" ]; then
+  "$python_bin" -m ensurepip --upgrade || true
+  "$python_bin" -m venv .venv
+fi
 
-                    Set-Content -Path $env:PYTHON_BIN_FILE -Value $pythonBin -NoNewline
-                    & $pythonBin --version
+if [ ! -x ".venv/bin/python" ]; then
+  echo "Unable to create .venv"
+  exit 1
+fi
 
-                    $currentHash = (Get-FileHash -Path requirements.txt -Algorithm SHA256).Hash
-                    $savedHash = ""
-                    if (Test-Path $reqHashFile) {
-                        $savedHash = (Get-Content $reqHashFile -Raw).Trim()
-                    }
+python_bin=".venv/bin/python"
+printf '%s' "$python_bin" > "$PYTHON_BIN_FILE"
+"$python_bin" --version
 
-                    $needInstall = $false
-                    if (-not (Test-Path $reqHashFile)) {
-                        $needInstall = $true
-                    }
-                    if ($currentHash -ne $savedHash) {
-                        $needInstall = $true
-                    }
+current_hash="$(sha256sum requirements.txt | awk '{print $1}')"
+saved_hash=""
+if [ -f "$req_hash_file" ]; then
+  saved_hash="$(tr -d '\r\n' < "$req_hash_file")"
+fi
 
-                    & $pythonBin -m pytest --version | Out-Null
-                    if ($LASTEXITCODE -ne 0) {
-                        $needInstall = $true
-                    }
+need_install=0
+if [ ! -f "$req_hash_file" ]; then
+  need_install=1
+fi
+if [ "$current_hash" != "$saved_hash" ]; then
+  need_install=1
+fi
+if ! "$python_bin" -m pytest --version >/dev/null 2>&1; then
+  need_install=1
+fi
 
-                    if ($needInstall) {
-                        Write-Host "Installing Python dependencies (first run or requirements changed)..."
-                        & $pythonBin -m pip install --cache-dir $env:PIP_CACHE_DIR --upgrade pip
-                        & $pythonBin -m pip install --cache-dir $env:PIP_CACHE_DIR -r requirements.txt
-                        Set-Content -Path $reqHashFile -Value $currentHash -NoNewline
-                    } else {
-                        Write-Host "Python dependencies already installed, skip pip install."
-                    }
+if [ "$need_install" -eq 1 ]; then
+  echo "Installing Python dependencies (first run or requirements changed)..."
+  "$python_bin" -m pip install --cache-dir "$PIP_CACHE_DIR" --upgrade pip
+  "$python_bin" -m pip install --cache-dir "$PIP_CACHE_DIR" -r requirements.txt
+  printf '%s' "$current_hash" > "$req_hash_file"
+else
+  echo "Python dependencies already installed, skip pip install."
+fi
 
-                    $chromiumCache = Get-ChildItem -Path $env:PLAYWRIGHT_BROWSERS_PATH -Directory -Filter 'chromium-*' -ErrorAction SilentlyContinue
-                    if (-not $chromiumCache) {
-                        & $pythonBin -m playwright install chromium
-                    } else {
-                        Write-Host "Chromium already exists in shared cache."
-                    }
-                '''
+if ! ls "$PLAYWRIGHT_BROWSERS_PATH"/chromium-* >/dev/null 2>&1; then
+  "$python_bin" -m playwright install chromium
+else
+  echo "Chromium already exists in shared cache."
+fi
+'''
             }
         }
 
         stage('Run') {
             steps {
-                powershell '''
-                    $ErrorActionPreference = "Stop"
-                    $pythonBin = ".\\.venv\\Scripts\\python.exe"
-                    if (Test-Path $env:PYTHON_BIN_FILE) {
-                        $pythonBin = (Get-Content $env:PYTHON_BIN_FILE -Raw).Trim()
-                    }
+                sh '''#!/usr/bin/env bash
+set -euo pipefail
 
-                    $pytestArgs = @(
-                        "-m", "pytest",
-                        "--target", $env:TARGET,
-                        "--run-mode", $env:RUN_MODE,
-                        "--playwright-trace", $env:TRACE,
-                        "--screenshot", $env:SCREENSHOT
-                    )
-                    if ($env:DOMAIN) {
-                        $pytestArgs += @("--domain", $env:DOMAIN)
-                    }
-                    if ($env:URL) {
-                        $pytestArgs += @("--url", $env:URL)
-                    }
-                    if ($env:HEADLESS -eq "false") {
-                        $pytestArgs += "--headed"
-                    }
-                    & $pythonBin @pytestArgs
-                '''
+python_bin="python3"
+if [ -f "$PYTHON_BIN_FILE" ]; then
+  python_bin="$(tr -d '\r\n' < "$PYTHON_BIN_FILE")"
+fi
+if [ ! -x "$python_bin" ]; then
+  python_bin=".venv/bin/python"
+fi
+
+pytest_args=(
+  -m pytest
+  --target "$TARGET"
+  --run-mode "$RUN_MODE"
+  --playwright-trace "$TRACE"
+  --screenshot "$SCREENSHOT"
+)
+
+if [ -n "${DOMAIN:-}" ]; then
+  pytest_args+=( --domain "$DOMAIN" )
+fi
+if [ -n "${URL:-}" ]; then
+  pytest_args+=( --url "$URL" )
+fi
+if [ "${HEADLESS}" = "false" ]; then
+  pytest_args+=( --headed )
+fi
+
+"$python_bin" "${pytest_args[@]}"
+'''
             }
         }
     }
@@ -163,57 +171,50 @@ pipeline {
     post {
         always {
             archiveArtifacts artifacts: 'reports/*.xlsx,artifacts/**/*', allowEmptyArchive: true
-            powershell '''
-                $ErrorActionPreference = "SilentlyContinue"
-                Remove-Item -Recurse -Force artifacts, .pytest_cache, pytest-cache-files-*, __pycache__ -ErrorAction SilentlyContinue
-            '''
+            sh '''#!/usr/bin/env bash
+set +e
+rm -rf artifacts .pytest_cache pytest-cache-files-* __pycache__
+exit 0
+'''
             script {
                 if (params.ENABLE_PERIODIC_ARTIFACT_PURGE) {
-                    powershell '''
-                        $ErrorActionPreference = "SilentlyContinue"
+                    sh '''#!/usr/bin/env bash
+set +e
 
-                        $parsedPurgeEvery = 5
-                        if (-not [int]::TryParse($env:PERIODIC_PURGE_EVERY, [ref]$parsedPurgeEvery) -or $parsedPurgeEvery -lt 2) {
-                            $parsedPurgeEvery = 5
-                        }
+purge_every="${PERIODIC_PURGE_EVERY:-5}"
+if ! [[ "$purge_every" =~ ^[0-9]+$ ]] || [ "$purge_every" -lt 2 ]; then
+  purge_every=5
+fi
 
-                        $parsedBuildNumber = 0
-                        if (-not [int]::TryParse($env:BUILD_NUMBER, [ref]$parsedBuildNumber)) {
-                            Write-Host "[PURGE] BUILD_NUMBER is not numeric, skip."
-                            exit 0
-                        }
+if ! [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
+  echo "[PURGE] BUILD_NUMBER is not numeric, skip."
+  exit 0
+fi
 
-                        $buildNumber = $parsedBuildNumber
-                        if (($buildNumber % $parsedPurgeEvery) -ne 0) {
-                            Write-Host "[PURGE] Skip: build #$buildNumber is not each $parsedPurgeEvery-th run."
-                            exit 0
-                        }
+build_number="$BUILD_NUMBER"
+if (( build_number % purge_every != 0 )); then
+  echo "[PURGE] Skip: build #$build_number is not each $purge_every-th run."
+  exit 0
+fi
 
-                        if (-not $env:JENKINS_HOME -or -not $env:JOB_NAME) {
-                            Write-Host "[PURGE] JENKINS_HOME or JOB_NAME is empty, skip."
-                            exit 0
-                        }
+if [ -z "${JENKINS_HOME:-}" ] || [ -z "${JOB_NAME:-}" ]; then
+  echo "[PURGE] JENKINS_HOME or JOB_NAME is empty, skip."
+  exit 0
+fi
 
-                        $jobPath = ($env:JOB_NAME -split '/' | ForEach-Object { "jobs\\$_" }) -join '\'
-                        $buildsDir = Join-Path $env:JENKINS_HOME (Join-Path $jobPath 'builds')
-                        if (-not (Test-Path $buildsDir)) {
-                            Write-Host "[PURGE] Builds dir not found: $buildsDir"
-                            exit 0
-                        }
+job_path="$(printf '%s' "$JOB_NAME" | sed 's#/#/jobs/#g')"
+builds_dir="$JENKINS_HOME/jobs/$job_path/builds"
+if [ ! -d "$builds_dir" ]; then
+  echo "[PURGE] Builds dir not found: $builds_dir"
+  exit 0
+fi
 
-                        Write-Host "[PURGE] Running periodic purge for $env:JOB_NAME at build #$buildNumber (every $parsedPurgeEvery)"
-                        Get-ChildItem -Path $buildsDir -Directory | Where-Object { $_.Name -ne $env:BUILD_NUMBER } | ForEach-Object {
-                            $archiveDir = Join-Path $_.FullName 'archive'
-                            $allureDir = Join-Path $_.FullName 'allure-report'
-                            if (Test-Path $archiveDir) {
-                                Remove-Item -LiteralPath $archiveDir -Recurse -Force
-                            }
-                            if (Test-Path $allureDir) {
-                                Remove-Item -LiteralPath $allureDir -Recurse -Force
-                            }
-                        }
-                        Write-Host "[PURGE] Done."
-                    '''
+echo "[PURGE] Running periodic purge for $JOB_NAME at build #$build_number (every $purge_every)"
+find "$builds_dir" -mindepth 1 -maxdepth 1 -type d ! -name "$BUILD_NUMBER" -print0 | while IFS= read -r -d '' build_dir; do
+  rm -rf "$build_dir/archive" "$build_dir/allure-report"
+done
+echo "[PURGE] Done."
+'''
                 } else {
                     echo 'Periodic artifact purge disabled by parameter.'
                 }

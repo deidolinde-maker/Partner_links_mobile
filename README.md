@@ -78,8 +78,9 @@ pytest --run-mode release
 
 ### Jenkins cache
 
-- браузеры Playwright переиспользуют общий кэш в `JENKINS_HOME\cache\ms-playwright`;
-- пакеты Python переиспользуют общий pip-кэш в `JENKINS_HOME\cache\pip`;
+- Jenkins job ожидает Linux-агент и использует `sh`, а не `powershell`.
+- браузеры Playwright переиспользуют общий кэш в `JENKINS_HOME/cache/ms-playwright`;
+- пакеты Python переиспользуют общий pip-кэш в `JENKINS_HOME/cache/pip`;
 - зависимости устанавливаются только когда меняется `requirements.txt`;
 - существующий `.venv` переиспользуется, если он уже есть.
 

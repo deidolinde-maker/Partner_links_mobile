@@ -1,17 +1,17 @@
 # Partner Links Mobile
 
-Automated checks for real links inside mobile tariff cards on production landing pages.
+Автотест для проверки фактических ссылок в карточках мобильных тарифов на prod-лендингах.
 
-## What it does
+## Что делает
 
-- opens all production URLs from config;
-- finds visible mobile tariff cards;
-- clicks card CTAs;
-- records the actual URL after click;
-- checks technical availability of the opened page;
-- saves an `.xlsx` report in `reports/`.
+- открывает все prod URL из конфига;
+- находит видимые карточки мобильных тарифов;
+- кликает по CTA;
+- фиксирует фактический URL после клика;
+- проверяет техническую доступность открывшейся страницы;
+- сохраняет `.xlsx` отчет в `reports/`.
 
-## Install
+## Установка
 
 ```bash
 python -m venv .venv
@@ -20,39 +20,39 @@ pip install -r requirements.txt
 python -m playwright install chromium
 ```
 
-## Run
+## Запуск
 
-All URLs:
+Все URL:
 
 ```bash
 pytest
 ```
 
-One domain:
+Один домен:
 
 ```bash
 pytest --target domain --domain t2-ru.online
 ```
 
-One URL:
+Один URL:
 
 ```bash
 pytest --target url --url https://t2-ru.online/mobilnaya-svyaz
 ```
 
-Pilot mode:
+Pilot-режим:
 
 ```bash
 pytest --run-mode pilot
 ```
 
-Release mode:
+Release-режим:
 
 ```bash
 pytest --run-mode release
 ```
 
-## Parameters
+## Параметры
 
 - `--target all|domain|url`
 - `--domain <domain>`
@@ -64,31 +64,31 @@ pytest --run-mode release
 - `--playwright-trace off|retain-on-failure|on`
 - `--screenshot off|on|only-on-failure`
 
-## Report
+## Отчет
 
-The report is saved to `reports/`:
+Отчет сохраняется в `reports/`:
 
 `partner_links_mobile_YYYY-MM-DD_HH-MM.xlsx`
 
 ## Jenkins
 
-- weekly trigger: `H H * * 1`;
-- `release` mode fails the job if the report contains at least one product error;
-- `.xlsx` is archived as a build artifact.
+- еженедельный запуск: `H H * * 1`;
+- в `release`-режиме job должна завершаться `failed`, если в отчете есть хотя бы одна продуктовая ошибка;
+- `.xlsx` архивируется как artifact.
 
 ### Jenkins cache
 
-- Playwright browsers reuse shared cache in `JENKINS_HOME\cache\ms-playwright`.
-- Python packages reuse shared pip cache in `JENKINS_HOME\cache\pip`.
-- Dependencies are installed only when `requirements.txt` changes.
-- Existing `.venv` is reused when present.
+- браузеры Playwright переиспользуют общий кэш в `JENKINS_HOME\cache\ms-playwright`;
+- пакеты Python переиспользуют общий pip-кэш в `JENKINS_HOME\cache\pip`;
+- зависимости устанавливаются только когда меняется `requirements.txt`;
+- существующий `.venv` переиспользуется, если он уже есть.
 
 ### Jenkins cleanup
 
-- `ENABLE_PERIODIC_ARTIFACT_PURGE=true` turns on periodic cleanup of old build archives.
-- `PERIODIC_PURGE_EVERY` controls how often cleanup runs, default `5`.
-- On cleanup runs, old `archive` and `allure-report` folders from previous builds are removed.
-- Workspace temp files are cleaned after each run: `artifacts`, `.pytest_cache`, `pytest-cache-files-*`, `__pycache__`.
+- `ENABLE_PERIODIC_ARTIFACT_PURGE=true` включает периодическую очистку старых архивов сборок;
+- `PERIODIC_PURGE_EVERY` задает, как часто запускать очистку, по умолчанию `5`;
+- в cleanup-итерации удаляются старые папки `archive` и `allure-report` у прошлых билдов;
+- после прогона очищаются временные файлы workspace: `artifacts`, `.pytest_cache`, `pytest-cache-files-*`, `__pycache__`.
 
 ### Jenkins parameters
 
@@ -102,6 +102,6 @@ The report is saved to `reports/`:
 - `ENABLE_PERIODIC_ARTIFACT_PURGE`
 - `PERIODIC_PURGE_EVERY`
 
-## Configuration updates
+## Обновление конфигурации
 
-All URLs and selectors live in `config/landings.py`.
+Все URL и селекторы живут в `config/landings.py`.

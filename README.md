@@ -105,10 +105,9 @@ pytest --run-mode release
 
 ### Jenkins UI selection
 
-- `DOMAIN` и `URL` в Jenkins отображаются как dropdown-ы, а не как ручной ввод.
+- Если `TARGET=domain` и `DOMAIN` оставить пустым, Jenkins предложит выбрать домен из dropdown.
+- Если `TARGET=url` и `URL` оставить пустым, Jenkins предложит выбрать URL из dropdown.
 - Списки для dropdown собираются из `config/landings.py`, поэтому новые URL и домены подхватываются автоматически после обновления репозитория.
-- Значение `Select` считается пустым и не мешает запуску `TARGET=all`.
-- Для динамических dropdown-ов в Jenkins нужен плагин Active Choices.
 
 ## Обновление конфигурации
 

@@ -1,72 +1,20 @@
-properties([
-    parameters([
-        choice(name: 'TARGET', choices: ['all', 'domain', 'url'], description: 'Scope of execution'),
-        [
-            $class: 'ChoiceParameter',
-            choiceType: 'PT_SINGLE_SELECT',
-            filterable: true,
-            filterLength: 1,
-            name: 'DOMAIN',
-            description: 'Domain filter for TARGET=domain',
-            script: [
-                $class: 'GroovyScript',
-                script: [
-                    sandbox: true,
-                    script: '''
-                        def text = new URL('https://raw.githubusercontent.com/deidolinde-maker/Partner_links_mobile/main/config/landings.py').text
-                        def values = []
-                        (text =~ /domain="([^"]+)"/).each { match ->
-                            values << match[1]
-                        }
-                        return ['Select:selected'] + values.unique().sort()
-                    '''
-                ],
-                fallbackScript: [
-                    sandbox: true,
-                    script: "return ['Select:selected']"
-                ]
-            ]
-        ],
-        [
-            $class: 'ChoiceParameter',
-            choiceType: 'PT_SINGLE_SELECT',
-            filterable: true,
-            filterLength: 1,
-            name: 'URL',
-            description: 'Single landing URL for TARGET=url',
-            script: [
-                $class: 'GroovyScript',
-                script: [
-                    sandbox: true,
-                    script: '''
-                        def text = new URL('https://raw.githubusercontent.com/deidolinde-maker/Partner_links_mobile/main/config/landings.py').text
-                        def values = []
-                        (text =~ /url="([^"]+)"/).each { match ->
-                            values << match[1]
-                        }
-                        return ['Select:selected'] + values.unique().sort()
-                    '''
-                ],
-                fallbackScript: [
-                    sandbox: true,
-                    script: "return ['Select:selected']"
-                ]
-            ]
-        ],
-        choice(name: 'RUN_MODE', choices: ['pilot', 'release'], description: 'Pilot does not fail build on product errors'),
-        booleanParam(name: 'HEADLESS', defaultValue: true, description: 'Run browser in headless mode'),
-        choice(name: 'TRACE', choices: ['off', 'retain-on-failure', 'on'], description: 'Playwright trace mode'),
-        choice(name: 'SCREENSHOT', choices: ['off', 'only-on-failure', 'on'], description: 'Screenshot mode'),
-        booleanParam(name: 'ENABLE_PERIODIC_ARTIFACT_PURGE', defaultValue: true, description: 'Every N builds, delete archived artifacts from previous builds.'),
-        string(name: 'PERIODIC_PURGE_EVERY', defaultValue: '5', description: 'Run full artifact purge every N-th build (integer >= 2).')
-    ])
-])
-
 pipeline {
     agent any
 
     triggers {
         cron('H H * * 1')
+    }
+
+    parameters {
+        choice(name: 'TARGET', choices: ['all', 'domain', 'url'], description: 'Scope of execution')
+        string(name: 'DOMAIN', defaultValue: '', description: 'Domain filter for TARGET=domain')
+        string(name: 'URL', defaultValue: '', description: 'Single landing URL for TARGET=url')
+        choice(name: 'RUN_MODE', choices: ['pilot', 'release'], description: 'Pilot does not fail build on product errors')
+        booleanParam(name: 'HEADLESS', defaultValue: true, description: 'Run browser in headless mode')
+        choice(name: 'TRACE', choices: ['off', 'retain-on-failure', 'on'], description: 'Playwright trace mode')
+        choice(name: 'SCREENSHOT', choices: ['off', 'only-on-failure', 'on'], description: 'Screenshot mode')
+        booleanParam(name: 'ENABLE_PERIODIC_ARTIFACT_PURGE', defaultValue: true, description: 'Every N builds, delete archived artifacts from previous builds.')
+        string(name: 'PERIODIC_PURGE_EVERY', defaultValue: '5', description: 'Run full artifact purge every N-th build (integer >= 2).')
     }
 
     options {
@@ -85,6 +33,60 @@ pipeline {
     }
 
     stages {
+        stage('Select landing') {
+            steps {
+                script {
+                    def landingsSource = readFile('config/landings.py')
+
+                    def extractChoices = { String pattern ->
+                        def values = []
+                        def matcher = (landingsSource =~ pattern)
+                        matcher.each { match ->
+                            if (match.size() > 1) {
+                                values << match[1]
+                            }
+                        }
+                        return values.unique()
+                    }
+
+                    def domainChoices = extractChoices(/domain="([^"]+)"/)
+                    def urlChoices = extractChoices(/url="([^"]+)"/)
+
+                    if (env.TARGET == 'domain' && !(env.DOMAIN?.trim())) {
+                        if (!domainChoices) {
+                            error('No domains found in config/landings.py')
+                        }
+                        env.DOMAIN = input(
+                            message: 'Select domain for Jenkins run',
+                            ok: 'Use domain',
+                            parameters: [
+                                choice(
+                                    name: 'DOMAIN',
+                                    choices: domainChoices.join('\n')
+                                )
+                            ]
+                        )
+                    }
+
+                    if (env.TARGET == 'url' && !(env.URL?.trim())) {
+                        if (!urlChoices) {
+                            error('No URLs found in config/landings.py')
+                        }
+                        env.URL = input(
+                            message: 'Select landing URL for Jenkins run',
+                            ok: 'Use URL',
+                            parameters: [
+                                choice(
+                                    name: 'URL',
+                                    choices: urlChoices.join('\n')
+                                )
+                            ]
+                        )
+                    }
+                }
+            }
+        }
+
         stage('Prepare') {
             steps {
                 sh '''#!/usr/bin/env bash

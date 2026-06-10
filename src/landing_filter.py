@@ -5,25 +5,12 @@ from collections.abc import Iterable
 from config.landings import LandingConfig
 
 
-def _normalize_filter_value(value: str | None) -> str | None:
-    if value is None:
-        return None
-    cleaned = value.strip()
-    if not cleaned:
-        return None
-    if cleaned.lower() in {"select", "select:selected"}:
-        return None
-    return cleaned
-
-
 def select_landings(
     landings: Iterable[LandingConfig],
     target: str,
     domain: str | None,
     url: str | None,
 ) -> list[LandingConfig]:
-    domain = _normalize_filter_value(domain)
-    url = _normalize_filter_value(url)
     landings_list = list(landings)
     selected = landings_list
 
@@ -50,3 +37,4 @@ def select_landings(
         raise ValueError(f"No landings matched the filter: {criteria}")
 
     return selected
+

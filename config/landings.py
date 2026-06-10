@@ -40,6 +40,14 @@ MTS_CARD_SELECTORS = (
     ".card-one",
 )
 
+MTS_CTA_SELECTORS = (
+    "button.button-red.card-one__button.button-mobile-application",
+    "button.button-mobile-application",
+    "button.card-one__button",
+    "button.button-red.card-one__button",
+    "a[href]",
+)
+
 BEELINE_CARD_SELECTORS = (
     ".card-block",
 )
@@ -79,7 +87,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://mts-home-gpon.ru/moskva/mobilnaya-svyaz",
         card_selectors=MTS_CARD_SELECTORS,
         title_selectors=MTS_TITLE_SELECTORS,
-        cta_selectors=MTS_CARD_SELECTORS + ("a[href]", "button"),
+        cta_selectors=MTS_CTA_SELECTORS,
         comment="MTS Moscow landing.",
     ),
     LandingConfig(
@@ -88,7 +96,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://mts-home-gpon.ru/sankt-peterburg/mobilnaya-svyaz",
         card_selectors=MTS_CARD_SELECTORS,
         title_selectors=MTS_TITLE_SELECTORS,
-        cta_selectors=MTS_CARD_SELECTORS + ("a[href]", "button"),
+        cta_selectors=MTS_CTA_SELECTORS,
         comment="MTS Saint Petersburg landing.",
     ),
     LandingConfig(
@@ -97,7 +105,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://mts-home.online/mobilnaya-svyaz",
         card_selectors=MTS_CARD_SELECTORS,
         title_selectors=MTS_TITLE_SELECTORS,
-        cta_selectors=MTS_CARD_SELECTORS + ("a[href]", "button"),
+        cta_selectors=MTS_CTA_SELECTORS,
         comment="MTS landing without region prefix.",
     ),
     LandingConfig(
@@ -106,7 +114,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://sankt-peterburg.mts-home.online/mobilnaya-svyaz",
         card_selectors=MTS_CARD_SELECTORS,
         title_selectors=MTS_TITLE_SELECTORS,
-        cta_selectors=MTS_CARD_SELECTORS + ("a[href]", "button"),
+        cta_selectors=MTS_CTA_SELECTORS,
         comment="MTS Saint Petersburg subdomain.",
     ),
     LandingConfig(
@@ -115,7 +123,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://mts-home-online.ru/moskva/mobilnaya-svyaz",
         card_selectors=MTS_CARD_SELECTORS,
         title_selectors=MTS_TITLE_SELECTORS,
-        cta_selectors=MTS_CARD_SELECTORS + ("a[href]", "button"),
+        cta_selectors=MTS_CTA_SELECTORS,
         comment="MTS alt domain Moscow landing.",
     ),
     LandingConfig(
@@ -124,7 +132,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://mts-home-online.ru/sankt-peterburg/mobilnaya-svyaz",
         card_selectors=MTS_CARD_SELECTORS,
         title_selectors=MTS_TITLE_SELECTORS,
-        cta_selectors=MTS_CARD_SELECTORS + ("a[href]", "button"),
+        cta_selectors=MTS_CTA_SELECTORS,
         comment="MTS alt domain Saint Petersburg landing.",
     ),
     LandingConfig(

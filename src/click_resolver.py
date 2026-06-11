@@ -14,6 +14,14 @@ def _safe_href(locator: Locator | None) -> str:
         return ""
 
 
+def _nav_wait_ms(timeout_ms: int) -> int:
+    return min(timeout_ms, 10_000)
+
+
+def _page_wait_ms(timeout_ms: int) -> int:
+    return min(timeout_ms, 5_000)
+
+
 def click_card_cta(
     page: Page,
     context: BrowserContext,
@@ -40,9 +48,11 @@ def click_card_cta(
     before_url = page.url
     before_pages = set(context.pages)
     new_page = None
+    nav_wait_ms = _nav_wait_ms(timeout_ms)
+    page_wait_ms = _page_wait_ms(timeout_ms)
 
     try:
-        with context.expect_page(timeout=min(timeout_ms, 1_500)) as new_page_info:
+        with context.expect_page(timeout=page_wait_ms) as new_page_info:
             cta.click(timeout=timeout_ms)
         new_page = new_page_info.value
     except PlaywrightTimeoutError:
@@ -61,7 +71,14 @@ def click_card_cta(
 
     if new_page is not None:
         try:
-            new_page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
+            new_page.wait_for_url(
+                lambda current_url: bool(current_url.strip()) and current_url.strip() != "about:blank",
+                timeout=nav_wait_ms,
+            )
+        except Exception:
+            pass
+        try:
+            new_page.wait_for_load_state("domcontentloaded", timeout=nav_wait_ms)
         except Exception:
             pass
         clicked_url = (new_page.url or "").strip()
@@ -88,7 +105,17 @@ def click_card_cta(
         )
 
     try:
-        page.wait_for_load_state("domcontentloaded", timeout=min(timeout_ms, 3_000))
+        page.wait_for_url(
+            lambda current_url: bool(current_url.strip())
+            and current_url.strip() != before_url
+            and current_url.strip() != "about:blank",
+            timeout=nav_wait_ms,
+        )
+    except Exception:
+        pass
+
+    try:
+        page.wait_for_load_state("domcontentloaded", timeout=nav_wait_ms)
     except Exception:
         pass
 
@@ -111,4 +138,3 @@ def click_card_cta(
         source_href=source_href,
         product_error=True,
     )
-

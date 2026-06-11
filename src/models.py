@@ -61,7 +61,7 @@ class AvailabilityResult:
 
     @property
     def product_error(self) -> bool:
-        return self.status != STATUS_OK
+        return self.status not in {STATUS_OK, STATUS_JS_ERROR}
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,4 +101,3 @@ class ClickResult:
     transition_type: str
     source_href: str
     product_error: bool
-

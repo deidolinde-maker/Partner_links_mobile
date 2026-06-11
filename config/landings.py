@@ -79,6 +79,14 @@ T2_TITLE_SELECTORS = (
     "[class*='tariff']",
 )
 
+T2_CTA_SELECTORS = (
+    ".card-new__button.button-mobile-application",
+    ".card-new__button",
+    "button.button-mobile-application",
+    "button",
+    "a[href]",
+)
+
 
 LANDINGS: tuple[LandingConfig, ...] = (
     LandingConfig(
@@ -195,7 +203,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://t2-ru.online/mobilnaya-svyaz",
         card_selectors=T2_CARD_SELECTORS,
         title_selectors=T2_TITLE_SELECTORS,
-        cta_selectors=T2_CARD_SELECTORS + ("a[href]", "button"),
+        cta_selectors=T2_CTA_SELECTORS,
         comment="T2 main landing. Selectors reused from the reference project.",
     ),
     LandingConfig(
@@ -204,7 +212,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://t2-ru.online/sankt-peterburg/mobilnaya-svyaz",
         card_selectors=T2_CARD_SELECTORS,
         title_selectors=T2_TITLE_SELECTORS,
-        cta_selectors=T2_CARD_SELECTORS + ("a[href]", "button"),
+        cta_selectors=T2_CTA_SELECTORS,
         comment="T2 Saint Petersburg landing. Selectors reused from the reference project.",
     ),
 )

@@ -7,7 +7,6 @@ pipeline {
 
     parameters {
         booleanParam(name: 'VALIDATION_ONLY', defaultValue: false, description: 'Skip browser run and validate an existing report only')
-        string(name: 'INPUT_REPORT', defaultValue: '', description: 'Path to an existing first-iteration report for validation-only mode')
         choice(name: 'TARGET', choices: ['all', 'domain', 'url'], description: 'Scope of execution')
         string(name: 'DOMAIN', defaultValue: '', description: 'Domain filter for TARGET=domain')
         string(name: 'URL', defaultValue: '', description: 'Single landing URL for TARGET=url')
@@ -237,15 +236,6 @@ fi
         stage('Resolve input report') {
             steps {
                 script {
-                    if (params.VALIDATION_ONLY) {
-                        if (!(params.INPUT_REPORT?.trim())) {
-                            error('INPUT_REPORT is required when VALIDATION_ONLY is enabled')
-                        }
-                        env.FIRST_REPORT_PATH = params.INPUT_REPORT.trim()
-                        echo "Validation-only mode, input report: ${env.FIRST_REPORT_PATH}"
-                        return
-                    }
-
                     def latestReport = sh(
                         script: '''#!/usr/bin/env bash
 set -euo pipefail
@@ -258,16 +248,16 @@ if [ ! -x "$python_bin" ]; then
   python_bin=".venv/bin/python"
 fi
 
-latest_report="$("$python_bin" -c "from pathlib import Path; import sys; reports = sorted(Path('reports').glob('partner_links_mobile_*.xlsx'), key=lambda p: p.stat().st_mtime, reverse=True); sys.exit(1) if not reports else print(reports[0])")"
+latest_report="$("$python_bin" -c "from pathlib import Path; import sys; reports = [path for path in Path('reports').glob('partner_links_mobile_*.xlsx') if path.is_file() and not path.name.startswith('partner_links_mobile_validated_')]; reports = sorted(reports, key=lambda path: path.stat().st_mtime, reverse=True); sys.exit(1) if not reports else print(reports[0])")"
 printf '%s' "$latest_report"
 ''',
                         returnStdout: true
                     ).trim()
                     if (!(latestReport?.trim())) {
-                        error('First iteration report not found after stage 1')
+                        error('First iteration report not found in reports/')
                     }
                     env.FIRST_REPORT_PATH = latestReport
-                    echo "First iteration report: ${env.FIRST_REPORT_PATH}"
+                    echo "Latest first iteration report: ${env.FIRST_REPORT_PATH}"
                 }
             }
         }

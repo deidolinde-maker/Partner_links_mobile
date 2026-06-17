@@ -106,13 +106,12 @@ Pipeline flow:
 
 1. Stage 1 runs the Playwright checks and produces the first `.xlsx` report.
 2. Stage 2 reads that report, compares it with `Links_mobile_tarriffs`, writes a validated report, and sends a Telegram alert through the proxy.
-3. If `VALIDATION_ONLY=true`, Stage 1 is skipped and Stage 2 validates the report given in `INPUT_REPORT`.
+3. If `VALIDATION_ONLY=true`, Stage 1 is skipped and Stage 2 validates the latest report already present in `reports/`.
 
 Jenkins parameters:
 
 - `TARGET`
 - `VALIDATION_ONLY`
-- `INPUT_REPORT`
 - `DOMAIN`
 - `URL`
 - `RUN_MODE`
@@ -138,7 +137,7 @@ The pipeline uses:
 - If `TARGET=domain` and `DOMAIN` is empty, Jenkins shows a dropdown with available domains.
 - If `TARGET=url` and `URL` is empty, Jenkins shows a dropdown with available URLs.
 - The dropdown values are taken from `config/landings.py`, so new landings appear automatically after a repo update.
-- If `VALIDATION_ONLY=true`, Jenkins skips the browser run and expects `INPUT_REPORT` to point to an existing first-iteration `.xlsx` report.
+- If `VALIDATION_ONLY=true`, Jenkins skips the browser run and automatically picks the newest first-iteration `.xlsx` report from `reports/`.
 
 ## Jenkins cleanup
 

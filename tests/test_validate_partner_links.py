@@ -18,6 +18,7 @@ from src.models import (
 from src.reference_loader import load_reference_links
 from src.report_writer import write_validation_report
 from src.result_evaluator import summarize_validation_rows
+from src.validate_partner_links import load_input_rows
 
 
 REFERENCE_HEADERS = [
@@ -222,3 +223,112 @@ def test_alert_sender_skips_without_proxy_env(monkeypatch: pytest.MonkeyPatch) -
     message = build_validation_alert_message(summary, "2026-06-11 09:55:23", "https://jenkins.example/job/1/")
     result = send_validation_alert(message)
     assert result.status == "skipped"
+
+
+def test_input_loader_uses_latest_report_from_reports_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir()
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(
+        [
+            "Домен",
+            "URL проверяемой страницы",
+            "Название тарифа",
+            "Ссылка после клика",
+            "Статус загрузки страницы",
+            "HTTP-статус",
+            "Финальный URL",
+            "Ошибка",
+            "Дата и время проверки",
+            "Оператор",
+            "Номер карточки",
+            "Тип перехода",
+            "Исходный href",
+            "Время загрузки, мс",
+            "Окружение запуска",
+            "Признак продуктовой ошибки",
+        ]
+    )
+    sheet.append(
+        [
+            "old.example",
+            "https://old.example/page",
+            "OLD",
+            "https://old.example/click",
+            "Успешно",
+            "200",
+            "https://old.example/final",
+            "",
+            "2026-06-17 11:35:00",
+            "OLD",
+            "1",
+            "new_tab",
+            "https://old.example/href",
+            "100",
+            "run_mode=pilot",
+            False,
+        ]
+    )
+    old_report = reports_dir / "partner_links_mobile_2026-06-17_11-35.xlsx"
+    workbook.save(old_report)
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(
+        [
+            "Домен",
+            "URL проверяемой страницы",
+            "Название тарифа",
+            "Ссылка после клика",
+            "Статус загрузки страницы",
+            "HTTP-статус",
+            "Финальный URL",
+            "Ошибка",
+            "Дата и время проверки",
+            "Оператор",
+            "Номер карточки",
+            "Тип перехода",
+            "Исходный href",
+            "Время загрузки, мс",
+            "Окружение запуска",
+            "Признак продуктовой ошибки",
+        ]
+    )
+    sheet.append(
+        [
+            "new.example",
+            "https://new.example/page",
+            "NEW",
+            "https://new.example/click",
+            "Успешно",
+            "200",
+            "https://new.example/final",
+            "",
+            "2026-06-17 11:40:00",
+            "NEW",
+            "2",
+            "new_tab",
+            "https://new.example/href",
+            "100",
+            "run_mode=pilot",
+            False,
+        ]
+    )
+    latest_report = reports_dir / "partner_links_mobile_2026-06-17_11-40.xlsx"
+    workbook.save(latest_report)
+
+    older_mtime = 1_750_000_000
+    latest_mtime = 1_750_000_600
+    latest_report.touch()
+    old_report.touch()
+    import os
+
+    os.utime(old_report, (older_mtime, older_mtime))
+    os.utime(latest_report, (latest_mtime, latest_mtime))
+
+    rows = load_input_rows("")
+    assert len(rows) == 1
+    assert rows[0].domain == "new.example"

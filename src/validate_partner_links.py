@@ -63,10 +63,43 @@ def _get_cell(row: tuple[object, ...], header_map: dict[str, int], *aliases: str
     return default if value is None else value
 
 
-def load_input_rows(input_report: str | Path) -> list[ReportRow]:
-    path = Path(input_report)
-    if not path.exists():
+def _latest_report_in(directory: Path) -> Path | None:
+    reports = [
+        path
+        for path in directory.glob("partner_links_mobile_*.xlsx")
+        if path.is_file() and not path.name.startswith("partner_links_mobile_validated_")
+    ]
+    if not reports:
+        return None
+    return max(reports, key=lambda path: path.stat().st_mtime)
+
+
+def _resolve_input_report_path(input_report: str | Path | None) -> Path:
+    if input_report:
+        path = Path(input_report)
+        if path.exists():
+            return path
+
+        if not path.is_absolute() and path.parts[:1] != ("reports",):
+            reports_path = Path("reports") / path
+            if reports_path.exists():
+                return reports_path
+
         raise FileNotFoundError(f"Input report not found: {path}")
+
+    latest_report = _latest_report_in(Path("reports"))
+    if latest_report is not None:
+        return latest_report
+
+    latest_report = _latest_report_in(Path.cwd())
+    if latest_report is not None:
+        return latest_report
+
+    raise FileNotFoundError("No partner_links_mobile report found")
+
+
+def load_input_rows(input_report: str | Path) -> list[ReportRow]:
+    path = _resolve_input_report_path(input_report)
     if path.suffix.lower() != ".xlsx":
         raise ValueError(f"Unsupported input report format: {path.suffix}")
 
@@ -110,7 +143,11 @@ def load_input_rows(input_report: str | Path) -> list[ReportRow]:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Validate partner links against the reference file")
-    parser.add_argument("--input-report", required=True, help="Path to the first iteration xlsx report")
+    parser.add_argument(
+        "--input-report",
+        default="",
+        help="Path to the first iteration xlsx report. If omitted, the latest report from reports/ is used.",
+    )
     parser.add_argument("--reference-file", required=True, help="Path to the Links_mobile_tarriffs file")
     parser.add_argument("--output-report", required=True, help="Path to the validated xlsx report")
     parser.add_argument("--run-mode", default="pilot", choices=("pilot", "release"))

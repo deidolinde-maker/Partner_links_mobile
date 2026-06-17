@@ -14,6 +14,8 @@ from src.models import ReferenceLink
 _WHITESPACE_RE = re.compile(r"\s+")
 _ALIAS_SPLIT_RE = re.compile(r"[;\n,|]+")
 _URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
+_TARIFF_TRAILING_NOTE_RE = re.compile(r"\s*\(([^()]*)\)\s*$")
+_TARIFF_PREFIX_RE = re.compile("^(?:\u043c\u0442\u0441|bee)\\s+", re.IGNORECASE)
 
 
 def normalize_text(value: object) -> str:
@@ -50,8 +52,31 @@ def normalize_page_url(value: object) -> str:
     return urlunsplit((scheme, netloc, path, parsed.query, ""))
 
 
+def _split_tariff_note(value: object) -> tuple[str, str]:
+    text = normalize_text(value)
+    if not text:
+        return "", ""
+
+    notes: list[str] = []
+    cleaned = text
+    while True:
+        match = _TARIFF_TRAILING_NOTE_RE.search(cleaned)
+        if match is None:
+            break
+        note = normalize_text(match.group(1))
+        if note:
+            notes.append(note)
+        cleaned = normalize_text(cleaned[: match.start()])
+
+    return cleaned, "; ".join(reversed(notes))
+
+
 def normalize_tariff_name(value: object) -> str:
-    return normalize_text(value).lower()
+    text, _ = _split_tariff_note(value)
+    if not text:
+        return ""
+    text = _TARIFF_PREFIX_RE.sub("", text)
+    return normalize_text(text).lower()
 
 
 def split_aliases(value: object) -> tuple[str, ...]:
@@ -158,12 +183,16 @@ def _build_reference_link(
 
     domain = normalize_domain(get_cell("Домен", "Domain"))
     page_url = normalize_page_url(get_cell("URL проверяемой страницы", "Page URL", "URL", "page_url"))
-    tariff_name = normalize_tariff_name(get_cell("Название тарифа", "Tariff Name", "tariff_name"))
+    raw_tariff_name = get_cell("Название тарифа", "Tariff Name", "tariff_name")
+    tariff_name, tariff_note = _split_tariff_note(raw_tariff_name)
+    tariff_name = normalize_tariff_name(tariff_name)
     expected_url_part = normalize_text(
         get_cell("Что сверяем", "Эталонная часть ссылки", "Expected URL Part", "Expected Part", "expected_url_part")
     )
     match_type = normalize_text(get_cell("Тип сравнения", "Match Type", "match_type")) or "contains"
     comment = normalize_text(get_cell("Комментарий", "Comment", "comment"))
+    if tariff_note:
+        comment = f"{comment}; {tariff_note}" if comment else tariff_note
     aliases = split_aliases(get_cell("Алиасы тарифа", "Tariff Aliases", "Aliases", "aliases"))
 
     if not domain or not tariff_name or not expected_url_part:

@@ -130,7 +130,7 @@ The pipeline uses:
 - Telegram proxy credentials:
   - `telegram_proxy_url`
   - `telegram_proxy_auth_secret`
-  - `telegram_proxy_global_test`
+  - `telegram_proxy_global_test` (bound in Jenkins to `TELEGRAM_PROXY_CREDS`)
 
 ## Jenkins UI selection
 

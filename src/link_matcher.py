@@ -20,7 +20,7 @@ from src.models import (
 )
 
 # Landing numbers change between runs, so we compare the stable part only.
-_LANDING_NUMBER_RE = re.compile(r"(Лендинг\s*)\d+", re.IGNORECASE)
+_LANDING_NUMBER_RE = re.compile("(\u041b\u0435\u043d\u0434\u0438\u043d\u0433\\s*)\\d+", re.IGNORECASE)
 
 
 def _url_variants(value: object) -> list[str]:
@@ -102,11 +102,13 @@ class MatchResult:
 @dataclass(frozen=True, slots=True)
 class ReferenceIndex:
     by_full_key: dict[str, ReferenceMatch]
+    by_domain_wildcard_key: dict[str, ReferenceMatch]
     by_fallback_key: dict[str, ReferenceMatch]
 
     @classmethod
     def build(cls, references: list[ReferenceLink]) -> "ReferenceIndex":
         by_full_key: dict[str, ReferenceMatch] = {}
+        by_domain_wildcard_key: dict[str, ReferenceMatch] = {}
         by_fallback_key: dict[str, ReferenceMatch] = {}
 
         for reference in references:
@@ -135,7 +137,18 @@ class ReferenceIndex:
                         key=key,
                     )
 
-        return cls(by_full_key=by_full_key, by_fallback_key=by_fallback_key)
+            if _is_general_page_reference(reference):
+                wildcard_domain_key = normalize_domain(reference.domain)
+                wildcard_match_key = build_expected_key(wildcard_domain_key, "*", normalize_tariff_name(reference.tariff_name))
+                if wildcard_domain_key in by_domain_wildcard_key:
+                    raise ValueError(f"Duplicate general-page reference key: {wildcard_domain_key}")
+                by_domain_wildcard_key[wildcard_domain_key] = ReferenceMatch(
+                    reference=reference,
+                    matched_tariff_name=normalize_tariff_name(reference.tariff_name),
+                    key=wildcard_match_key,
+                )
+
+        return cls(by_full_key=by_full_key, by_domain_wildcard_key=by_domain_wildcard_key, by_fallback_key=by_fallback_key)
 
     def lookup(self, domain: object, page_url: object, tariff_name: object) -> ReferenceMatch | None:
         normalized_domain = normalize_domain(domain)
@@ -148,8 +161,20 @@ class ReferenceIndex:
             if match is not None:
                 return match
 
+        match = self.by_domain_wildcard_key.get(normalized_domain)
+        if match is not None:
+            return match
+
         fallback_key = build_expected_key(normalized_domain, "", normalized_tariff)
         return self.by_fallback_key.get(fallback_key)
+
+
+def _is_general_page_reference(reference: ReferenceLink) -> bool:
+    comment = normalize_text(reference.comment).lower()
+    tariff_name = normalize_tariff_name(reference.tariff_name)
+    if "\u043d\u0435\u0442 \u043d\u0430 \u043e\u0431\u0449\u0435\u0439 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0435" in comment:
+        return False
+    return "\u043e\u0431\u0449\u0430\u044f \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0430" in comment or tariff_name in {"\u0432\u0441\u0435 \u0442\u0430\u0440\u0438\u0444\u044b", "\u043e\u0431\u0449\u0430\u044f \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0430"}
 
 
 def _comparison_passes(expected: str, actual_variants: list[str], comparison_type: str) -> bool:

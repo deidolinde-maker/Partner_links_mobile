@@ -272,7 +272,7 @@ printf '%s' "$latest_report"
                     withCredentials([
                         string(credentialsId: 'telegram_proxy_url', variable: 'TELEGRAM_PROXY_URL'),
                         string(credentialsId: 'telegram_proxy_auth_secret', variable: 'TELEGRAM_PROXY_AUTH_SECRET'),
-                        string(credentialsId: 'telegram_proxy_global_test', variable: 'TELEGRAM_PROXY_CHAT_CREDENTIAL')
+                        string(credentialsId: 'telegram_proxy_global_test', variable: 'TELEGRAM_PROXY_CREDS')
                     ]) {
                         sh '''#!/usr/bin/env bash
 set -euo pipefail

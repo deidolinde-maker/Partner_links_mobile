@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+import json
+
 import pytest
 from openpyxl import Workbook, load_workbook
 
@@ -145,7 +147,7 @@ def test_reference_loader_supports_compact_site_table_format(tmp_path: Path) -> 
     )
 
     assert result.status == VALIDATION_STATUS_OK
-    assert result.match_key == "mts-home.online::мтс супер"
+    assert result.match_key == "mts-home.online::\u0441\u0443\u043f\u0435\u0440"
     assert result.reference_part == "mts.ru/personal/mobilnaya-svyaz/tarifi/vse-tarifi/mts-super/?utm_source=mtspn"
 
 
@@ -169,6 +171,40 @@ def test_reference_loader_extracts_domain_from_labelled_site_row(tmp_path: Path)
 
     assert references[0].domain == "beeline.ru"
     assert references[0].tariff_name == "все тарифы"
+
+
+def test_reference_loader_normalizes_tariff_names_and_comments(tmp_path: Path) -> None:
+    reference_path = tmp_path / "Links_mobile_tarriffs.xlsx"
+    _write_xlsx(
+        reference_path,
+        REFERENCE_HEADERS,
+        [
+            [
+                "mts-home.online",
+                "https://mts-home.online/",
+                "\u041c\u0422\u0421 Junior",
+                "mts.ru/personal/mobilnaya-svyaz/uslugi/mobilnaya-svyaz/mts-junior/?utm_source=mtspn",
+                "contains",
+                "",
+                True,
+            ],
+            [
+                "t2-ru.online",
+                "https://t2-ru.online/mobilnaya-svyaz",
+                "\u041f\u0410\u0420\u0422\u041d\u0415\u0420 \u041c (\u043d\u0435\u0442 \u043d\u0430 \u043e\u0431\u0449\u0435\u0439 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0435)",
+                "t2.ru/promo/partner-all?utm_source=webdealer",
+                "contains",
+                "",
+                True,
+            ],
+        ],
+    )
+
+    references = load_reference_links(reference_path)
+
+    assert references[0].tariff_name == "junior"
+    assert references[1].tariff_name == "\u043f\u0430\u0440\u0442\u043d\u0435\u0440 \u043c"
+    assert "\u043d\u0435\u0442 \u043d\u0430 \u043e\u0431\u0449\u0435\u0439 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0435" in references[1].comment.lower()
 
 
 def test_reference_index_ignores_region_in_page_url(tmp_path: Path) -> None:
@@ -241,6 +277,43 @@ def test_validation_ignores_landing_number_in_actual_url(tmp_path: Path) -> None
 
     assert result.status == VALIDATION_STATUS_OK
     assert result.reference_part == "mts.ru/personal/mobilnaya-svyaz/uslugi/mobilnaya-svyaz/mts-junior/?utm_source=mtspn&utm_medium=cpa&utm_content=&oid=841483&utm_campaign=c_mtspn_s_101internet_r_rf_f_mix_pl_Лендинг 201_t_cpa_a_broad_k_promo&clickid"
+
+
+def test_reference_index_uses_general_page_row_for_any_tariff(tmp_path: Path) -> None:
+    reference_path = tmp_path / "Links_mobile_tarriffs.xlsx"
+    _write_xlsx(
+        reference_path,
+        REFERENCE_HEADERS,
+        [
+            [
+                "online-beeline.ru",
+                "https://online-beeline.ru/",
+                "\u0412\u0441\u0435 \u0442\u0430\u0440\u0438\u0444\u044b (\u043e\u0431\u0449\u0430\u044f \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0430)",
+                "beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing",
+                "contains",
+                "",
+                True,
+            ],
+        ],
+    )
+
+    references = load_reference_links(reference_path)
+    index = ReferenceIndex.build(references)
+
+    result = evaluate_validation(
+        _build_input_row(
+            domain="online-beeline.ru",
+            checked_page_url="https://online-beeline.ru/tariffs-mobile",
+            tariff_name="bee HIT",
+            click_url="https://moskva.beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing",
+            final_url="https://moskva.beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing",
+        ),
+        index,
+    )
+
+    assert result.status == VALIDATION_STATUS_OK
+    assert result.match_key == "online-beeline.ru::*::\u0432\u0441\u0435 \u0442\u0430\u0440\u0438\u0444\u044b"
+    assert result.reference_part == "beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing"
 
 
 def test_reference_loader_treats_root_page_url_as_fallback(tmp_path: Path) -> None:
@@ -419,6 +492,7 @@ def test_alert_sender_skips_without_proxy_env(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.delenv("TELEGRAM_PROXY_URL", raising=False)
     monkeypatch.delenv("TELEGRAM_PROXY_AUTH_SECRET", raising=False)
     monkeypatch.delenv("TELEGRAM_PROXY_CHAT_CREDENTIAL", raising=False)
+    monkeypatch.delenv("TELEGRAM_PROXY_CREDS", raising=False)
 
     summary = summarize_validation_rows(
         [
@@ -432,6 +506,56 @@ def test_alert_sender_skips_without_proxy_env(monkeypatch: pytest.MonkeyPatch) -
     message = build_validation_alert_message(summary, "2026-06-11 09:55:23", "https://jenkins.example/job/1/")
     result = send_validation_alert(message)
     assert result.status == "skipped"
+
+
+def test_alert_sender_uses_proxy_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TELEGRAM_PROXY_URL", "https://proxy.example/telegram")
+    monkeypatch.setenv("TELEGRAM_PROXY_AUTH_SECRET", "proxy-secret")
+    monkeypatch.setenv("TELEGRAM_PROXY_CREDS", "chat-creds")
+
+    captured: dict[str, object] = {}
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self) -> bytes:
+            return b"ok"
+
+    def fake_urlopen(request, timeout=0):
+        captured["request"] = request
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr("src.alert_sender.urlrequest.urlopen", fake_urlopen)
+
+    result = send_validation_alert("Отчет готов")
+
+    assert result.sent is True
+    assert result.status == "sent"
+    assert captured["timeout"] == 20
+
+    request = captured["request"]
+    assert request.full_url == "https://proxy.example/telegram"
+    assert request.get_method() == "POST"
+
+    headers = {key.lower(): value for key, value in request.header_items()}
+    assert headers["x-authentication"] == "proxy-secret"
+    assert headers["content-type"] == "application/json"
+
+    payload = json.loads(request.data.decode("utf-8"))
+    assert payload == {
+        "title": "Partner_links_mobile [summary]",
+        "text": "Отчет готов",
+        "creds": "chat-creds",
+        "parse_mode": "HTML",
+        "disable_notification": False,
+    }
 
 
 def test_input_loader_uses_latest_report_from_reports_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

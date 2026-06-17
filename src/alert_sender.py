@@ -69,22 +69,31 @@ def build_validation_alert_message(
     return "\n".join(lines)
 
 
+def _proxy_creds() -> str:
+    return (
+        os.getenv("TELEGRAM_PROXY_CREDS")
+        or os.getenv("TELEGRAM_PROXY_CHAT_CREDENTIAL")
+        or ""
+    ).strip()
+
+
 def send_validation_alert(message: str) -> AlertSendResult:
     proxy_url = (os.getenv("TELEGRAM_PROXY_URL") or "").strip()
     proxy_auth_secret = (os.getenv("TELEGRAM_PROXY_AUTH_SECRET") or "").strip()
-    chat_credential = (os.getenv("TELEGRAM_PROXY_CHAT_CREDENTIAL") or "").strip()
+    proxy_creds = _proxy_creds()
 
-    if not proxy_url or not proxy_auth_secret or not chat_credential:
+    if not proxy_url or not proxy_auth_secret or not proxy_creds:
         detail = "Telegram proxy env is not configured"
         print(detail)
         return AlertSendResult(sent=False, status="skipped", detail=detail)
 
     payload = json.dumps(
         {
-            "chat_credential": chat_credential,
-            "chat": chat_credential,
-            "message": message,
+            "title": "Partner_links_mobile [summary]",
             "text": message,
+            "creds": proxy_creds,
+            "parse_mode": "HTML",
+            "disable_notification": False,
         },
         ensure_ascii=False,
     ).encode("utf-8")
@@ -93,7 +102,8 @@ def send_validation_alert(message: str) -> AlertSendResult:
         proxy_url,
         data=payload,
         headers={
-            "Content-Type": "application/json; charset=utf-8",
+            "Content-Type": "application/json",
+            "X-Authentication": proxy_auth_secret,
             "Authorization": f"Bearer {proxy_auth_secret}",
             "X-Auth-Secret": proxy_auth_secret,
         },
@@ -105,7 +115,7 @@ def send_validation_alert(message: str) -> AlertSendResult:
             body = response.read().decode("utf-8", errors="replace").strip()
             status = getattr(response, "status", 200)
             detail = body or f"HTTP {status}"
-            print(f"[ALERT] sent status={status}")
+            print(f"[ALERT] sent via proxy status={status}")
             return AlertSendResult(sent=True, status="sent", detail=detail)
     except (urlerror.HTTPError, urlerror.URLError, TimeoutError, OSError) as exc:
         detail = str(exc)

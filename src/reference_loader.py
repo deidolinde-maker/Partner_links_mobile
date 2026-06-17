@@ -160,7 +160,7 @@ def _build_reference_link(
     page_url = normalize_page_url(get_cell("URL проверяемой страницы", "Page URL", "URL", "page_url"))
     tariff_name = normalize_tariff_name(get_cell("Название тарифа", "Tariff Name", "tariff_name"))
     expected_url_part = normalize_text(
-        get_cell("Эталонная часть ссылки", "Expected URL Part", "Expected Part", "expected_url_part")
+        get_cell("Что сверяем", "Эталонная часть ссылки", "Expected URL Part", "Expected Part", "expected_url_part")
     )
     match_type = normalize_text(get_cell("Тип сравнения", "Match Type", "match_type")) or "contains"
     comment = normalize_text(get_cell("Комментарий", "Comment", "comment"))

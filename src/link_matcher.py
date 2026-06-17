@@ -7,7 +7,6 @@ from urllib.parse import urlsplit
 
 from src.reference_loader import (
     normalize_domain,
-    normalize_page_url,
     normalize_tariff_name,
     normalize_text,
 )
@@ -19,6 +18,9 @@ from src.models import (
     VALIDATION_STATUS_NOT_OK,
     VALIDATION_STATUS_OK,
 )
+
+# Landing numbers change between runs, so we compare the stable part only.
+_LANDING_NUMBER_RE = re.compile(r"(Лендинг\s*)\d+", re.IGNORECASE)
 
 
 def _url_variants(value: object) -> list[str]:
@@ -37,15 +39,36 @@ def _url_variants(value: object) -> list[str]:
     seen: set[str] = set()
     for variant in variants:
         cleaned = normalize_text(variant)
-        if cleaned and cleaned not in seen:
-            seen.add(cleaned)
-            unique.append(cleaned)
+        if not cleaned:
+            continue
+
+        for normalized_variant in (cleaned, _LANDING_NUMBER_RE.sub(r"\1", cleaned)):
+            if normalized_variant and normalized_variant not in seen:
+                seen.add(normalized_variant)
+                unique.append(normalized_variant)
     return unique
+
+
+def _normalize_page_url_key(value: object) -> str:
+    text = normalize_text(value)
+    if not text:
+        return ""
+
+    # Regional subdomains should not split the same landing into different keys.
+    url_match = re.search(r"https?://\S+", text, re.IGNORECASE)
+    candidate = url_match.group(0) if url_match is not None else text
+    parsed = urlsplit(candidate if "://" in candidate else f"https://{candidate}")
+    path = parsed.path.rstrip("/") or parsed.path
+    if not path or path == "/":
+        return ""
+    if parsed.query:
+        return f"{path}?{parsed.query}"
+    return path
 
 
 def build_lookup_key(domain: object, page_url: object, tariff_name: object) -> str:
     domain_part = normalize_domain(domain)
-    page_part = normalize_page_url(page_url)
+    page_part = _normalize_page_url_key(page_url)
     tariff_part = normalize_tariff_name(tariff_name)
     if page_part:
         return f"{domain_part}::{page_part}::{tariff_part}"
@@ -56,13 +79,6 @@ def build_expected_key(domain: str, page_url: str, tariff_name: str) -> str:
     if page_url:
         return f"{domain}::{page_url}::{tariff_name}"
     return f"{domain}::{tariff_name}"
-
-
-def _is_root_page_url(page_url: str) -> bool:
-    if not page_url:
-        return False
-    parsed = urlsplit(page_url)
-    return parsed.path in {"", "/"} and not parsed.query and not parsed.fragment
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,7 +113,7 @@ class ReferenceIndex:
             tariff_variants = (reference.tariff_name,) + reference.aliases
             for tariff_name in tariff_variants:
                 normalized_domain = normalize_domain(reference.domain)
-                normalized_page_url = normalize_page_url(reference.page_url)
+                normalized_page_url = _normalize_page_url_key(reference.page_url)
                 normalized_tariff = normalize_tariff_name(tariff_name)
 
                 if normalized_page_url:
@@ -109,15 +125,6 @@ class ReferenceIndex:
                         matched_tariff_name=normalized_tariff,
                         key=key,
                     )
-                    if _is_root_page_url(normalized_page_url):
-                        fallback_key = build_expected_key(normalized_domain, "", normalized_tariff)
-                        if fallback_key in by_fallback_key:
-                            raise ValueError(f"Duplicate fallback reference key: {fallback_key}")
-                        by_fallback_key[fallback_key] = ReferenceMatch(
-                            reference=reference,
-                            matched_tariff_name=normalized_tariff,
-                            key=fallback_key,
-                        )
                 else:
                     key = build_expected_key(normalized_domain, "", normalized_tariff)
                     if key in by_fallback_key:
@@ -132,7 +139,7 @@ class ReferenceIndex:
 
     def lookup(self, domain: object, page_url: object, tariff_name: object) -> ReferenceMatch | None:
         normalized_domain = normalize_domain(domain)
-        normalized_page_url = normalize_page_url(page_url)
+        normalized_page_url = _normalize_page_url_key(page_url)
         normalized_tariff = normalize_tariff_name(tariff_name)
 
         if normalized_page_url:

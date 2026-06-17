@@ -100,7 +100,7 @@ def test_reference_loader_supports_aliases_and_inactive_rows(tmp_path: Path) -> 
 
     assert result.status == VALIDATION_STATUS_OK
     assert result.reference_part == "krasnodar.t2.ru/tariffs"
-    assert result.match_key == "t2-ru.online::https://t2-ru.online/mobilnaya-svyaz::мой онлайн+"
+    assert result.match_key == "t2-ru.online::/mobilnaya-svyaz::мой онлайн+"
 
 
 def test_reference_loader_supports_compact_site_table_format(tmp_path: Path) -> None:
@@ -169,6 +169,78 @@ def test_reference_loader_extracts_domain_from_labelled_site_row(tmp_path: Path)
 
     assert references[0].domain == "beeline.ru"
     assert references[0].tariff_name == "все тарифы"
+
+
+def test_reference_index_ignores_region_in_page_url(tmp_path: Path) -> None:
+    reference_path = tmp_path / "Links_mobile_tarriffs.xlsx"
+    _write_xlsx(
+        reference_path,
+        REFERENCE_HEADERS,
+        [
+            [
+                "beeline.ru",
+                "https://spb.beeline.ru/customers/products/toptariffs/",
+                "Топ тариф",
+                "beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing",
+                "contains",
+                "",
+                True,
+            ],
+        ],
+    )
+
+    references = load_reference_links(reference_path)
+    index = ReferenceIndex.build(references)
+
+    result = evaluate_validation(
+        _build_input_row(
+            domain="beeline.ru",
+            checked_page_url="https://moskva.beeline.ru/customers/products/toptariffs/",
+            tariff_name="Топ тариф",
+            click_url="https://moskva.beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing",
+            final_url="https://moskva.beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing",
+        ),
+        index,
+    )
+
+    assert result.status == VALIDATION_STATUS_OK
+    assert result.match_key == "beeline.ru::/customers/products/toptariffs::топ тариф"
+
+
+def test_validation_ignores_landing_number_in_actual_url(tmp_path: Path) -> None:
+    reference_path = tmp_path / "Links_mobile_tarriffs.xlsx"
+    _write_xlsx(
+        reference_path,
+        REFERENCE_HEADERS,
+        [
+            [
+                "mts-home.online",
+                "https://mts-home.online/",
+                "Junior",
+                "mts.ru/personal/mobilnaya-svyaz/uslugi/mobilnaya-svyaz/mts-junior/?utm_source=mtspn&utm_medium=cpa&utm_content=&oid=841483&utm_campaign=c_mtspn_s_101internet_r_rf_f_mix_pl_Лендинг 201_t_cpa_a_broad_k_promo&clickid",
+                "contains",
+                "",
+                True,
+            ],
+        ],
+    )
+
+    references = load_reference_links(reference_path)
+    index = ReferenceIndex.build(references)
+
+    result = evaluate_validation(
+        _build_input_row(
+            domain="mts-home.online",
+            checked_page_url="https://mts-home.online/",
+            tariff_name="Junior",
+            click_url="https://moskva.mts.ru/personal/mobilnaya-svyaz/uslugi/mobilnaya-svyaz/mts-junior/?utm_source=mtspn&utm_medium=cpa&utm_content=&oid=841483&utm_campaign=c_mtspn_s_101internet_r_rf_f_mix_pl_Лендинг 202_t_cpa_a_broad_k_promo&clickid=b351b0ba-9038-47f7-92bd-d5c45c83ab30&erid=",
+            final_url="https://moskva.mts.ru/personal/mobilnaya-svyaz/uslugi/mobilnaya-svyaz/mts-junior/?utm_source=mtspn&utm_medium=cpa&utm_content=&oid=841483&utm_campaign=c_mtspn_s_101internet_r_rf_f_mix_pl_Лендинг 202_t_cpa_a_broad_k_promo&clickid=b351b0ba-9038-47f7-92bd-d5c45c83ab30&erid=",
+        ),
+        index,
+    )
+
+    assert result.status == VALIDATION_STATUS_OK
+    assert result.reference_part == "mts.ru/personal/mobilnaya-svyaz/uslugi/mobilnaya-svyaz/mts-junior/?utm_source=mtspn&utm_medium=cpa&utm_content=&oid=841483&utm_campaign=c_mtspn_s_101internet_r_rf_f_mix_pl_Лендинг 201_t_cpa_a_broad_k_promo&clickid"
 
 
 def test_reference_loader_treats_root_page_url_as_fallback(tmp_path: Path) -> None:

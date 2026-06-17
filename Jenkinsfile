@@ -6,6 +6,8 @@ pipeline {
     }
 
     parameters {
+        booleanParam(name: 'VALIDATION_ONLY', defaultValue: false, description: 'Skip browser run and validate an existing report only')
+        string(name: 'INPUT_REPORT', defaultValue: '', description: 'Path to an existing first-iteration report for validation-only mode')
         choice(name: 'TARGET', choices: ['all', 'domain', 'url'], description: 'Scope of execution')
         string(name: 'DOMAIN', defaultValue: '', description: 'Domain filter for TARGET=domain')
         string(name: 'URL', defaultValue: '', description: 'Single landing URL for TARGET=url')
@@ -37,6 +39,9 @@ pipeline {
 
     stages {
         stage('Select landing') {
+            when {
+                expression { return !params.VALIDATION_ONLY }
+            }
             steps {
                 script {
                     def landingsSource = readFile('config/landings.py')
@@ -189,6 +194,9 @@ fi
         }
 
         stage('Collect actual links') {
+            when {
+                expression { return !params.VALIDATION_ONLY }
+            }
             steps {
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
                     sh '''#!/usr/bin/env bash
@@ -223,8 +231,21 @@ fi
 "$python_bin" "${pytest_args[@]}"
 '''
                 }
+            }
+        }
 
+        stage('Resolve input report') {
+            steps {
                 script {
+                    if (params.VALIDATION_ONLY) {
+                        if (!(params.INPUT_REPORT?.trim())) {
+                            error('INPUT_REPORT is required when VALIDATION_ONLY is enabled')
+                        }
+                        env.FIRST_REPORT_PATH = params.INPUT_REPORT.trim()
+                        echo "Validation-only mode, input report: ${env.FIRST_REPORT_PATH}"
+                        return
+                    }
+
                     def latestReport = sh(
                         script: '''#!/usr/bin/env bash
 set -euo pipefail

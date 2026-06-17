@@ -103,6 +103,74 @@ def test_reference_loader_supports_aliases_and_inactive_rows(tmp_path: Path) -> 
     assert result.match_key == "t2-ru.online::https://t2-ru.online/mobilnaya-svyaz::мой онлайн+"
 
 
+def test_reference_loader_supports_compact_site_table_format(tmp_path: Path) -> None:
+    reference_path = tmp_path / "Ссылки для парсера.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Лист1"
+    sheet.append(["Сайт", "Ссылка первичная", "Как открывается", "Что сверяем", None])
+    sheet.append(["https://mts-home.online/", None, None, None, None])
+    sheet.append(
+        [
+            "МТС Супер",
+            "https://tracking.pn.mts.ru/tracker?channelId=991de3b9-6956-40d7-8c09-f0eaa3946243&lid=166014",
+            "https://spb.mts.ru/personal/mobilnaya-svyaz/tarifi/vse-tarifi/mts-super/?utm_source=mtspn",
+            "mts.ru/personal/mobilnaya-svyaz/tarifi/vse-tarifi/mts-super/?utm_source=mtspn",
+            "1. Может быть разный регион",
+        ]
+    )
+    sheet.append(
+        [
+            "РИИЛ",
+            "https://tracking.pn.mts.ru/tracker?channelId=991de3b9-6956-40d7-8c09-f0eaa3946243&lid=368458",
+            "https://moskva.mts.ru/personal/mobilnaya-svyaz/tarifi/vse-tarifi/riil/?utm_source=mtspn",
+            "mts.ru/personal/mobilnaya-svyaz/tarifi/vse-tarifi/riil/?utm_source=mtspn",
+            None,
+        ]
+    )
+    workbook.save(reference_path)
+
+    references = load_reference_links(reference_path)
+    index = ReferenceIndex.build(references)
+
+    result = evaluate_validation(
+        _build_input_row(
+            domain="mts-home.online",
+            checked_page_url="https://mts-home.online/",
+            tariff_name="МТС Супер",
+            click_url="https://spb.mts.ru/personal/mobilnaya-svyaz/tarifi/vse-tarifi/mts-super/?utm_source=mtspn",
+            final_url="https://spb.mts.ru/personal/mobilnaya-svyaz/tarifi/vse-tarifi/mts-super/?utm_source=mtspn",
+        ),
+        index,
+    )
+
+    assert result.status == VALIDATION_STATUS_OK
+    assert result.match_key == "mts-home.online::мтс супер"
+    assert result.reference_part == "mts.ru/personal/mobilnaya-svyaz/tarifi/vse-tarifi/mts-super/?utm_source=mtspn"
+
+
+def test_reference_loader_extracts_domain_from_labelled_site_row(tmp_path: Path) -> None:
+    reference_path = tmp_path / "Ссылки для парсера.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["Сайт", "Ссылка первичная", "Как открывается", "Что сверяем"])
+    sheet.append(["Билайн - https://beeline.ru/", None, None, None])
+    sheet.append(
+        [
+            "Все тарифы",
+            "https://tracking.example/link",
+            "https://beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing",
+            "beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing",
+        ]
+    )
+    workbook.save(reference_path)
+
+    references = load_reference_links(reference_path)
+
+    assert references[0].domain == "beeline.ru"
+    assert references[0].tariff_name == "все тарифы"
+
+
 def test_validation_handles_regex_and_fallback(tmp_path: Path) -> None:
     reference_path = tmp_path / "Links_mobile_tarriffs.xlsx"
     _write_xlsx(

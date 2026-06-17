@@ -13,6 +13,7 @@ from src.models import ReferenceLink
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _ALIAS_SPLIT_RE = re.compile(r"[;\n,|]+")
+_URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 
 
 def normalize_text(value: object) -> str:
@@ -25,7 +26,9 @@ def normalize_domain(value: object) -> str:
     if not text:
         return ""
 
-    parsed = urlsplit(text if "://" in text else f"https://{text}")
+    url_match = _URL_RE.search(text)
+    candidate = url_match.group(0) if url_match is not None else text
+    parsed = urlsplit(candidate if "://" in candidate else f"https://{candidate}")
     host = parsed.netloc or parsed.path
     host = host.split("/")[0]
     if host.startswith("www."):
@@ -38,7 +41,9 @@ def normalize_page_url(value: object) -> str:
     if not text:
         return ""
 
-    parsed = urlsplit(text if "://" in text else f"https://{text}")
+    url_match = _URL_RE.search(text)
+    candidate = url_match.group(0) if url_match is not None else text
+    parsed = urlsplit(candidate if "://" in candidate else f"https://{candidate}")
     scheme = parsed.scheme.lower() if parsed.scheme else "https"
     netloc = parsed.netloc.lower()
     path = parsed.path.rstrip("/") or parsed.path
@@ -91,6 +96,20 @@ def _first_header_index(header_map: dict[str, int], aliases: tuple[str, ...]) ->
         if index is not None:
             return index
     return None
+
+
+def _row_has_content(row: tuple[object, ...]) -> bool:
+    return any(cell is not None and normalize_text(cell) for cell in row)
+
+
+def _looks_like_site_context_row(row: tuple[object, ...]) -> bool:
+    first = normalize_text(row[0]) if row else ""
+    if not first:
+        return False
+    trailing = [normalize_text(cell) for cell in row[1:]]
+    if any(trailing):
+        return False
+    return first.startswith(("http://", "https://")) or "." in first
 
 
 def _load_xlsx_rows(path: Path) -> list[tuple[object, ...]]:
@@ -147,14 +166,10 @@ def _build_reference_link(
     comment = normalize_text(get_cell("Комментарий", "Comment", "comment"))
     aliases = split_aliases(get_cell("Алиасы тарифа", "Tariff Aliases", "Aliases", "aliases"))
 
-    if not domain:
-        raise ValueError(f"Row {row_number}: domain is required")
-    if not tariff_name:
-        raise ValueError(f"Row {row_number}: tariff name is required")
-    if not expected_url_part:
-        raise ValueError(f"Row {row_number}: expected URL part is required")
+    if not domain or not tariff_name or not expected_url_part:
+        return None
     if match_type not in {"contains", "regex"}:
-        raise ValueError(f"Row {row_number}: unsupported match type {match_type!r}")
+        return None
 
     return ReferenceLink(
         domain=domain,
@@ -166,6 +181,54 @@ def _build_reference_link(
         active=active,
         aliases=aliases,
     )
+
+
+def _load_compact_rows(rows: list[tuple[object, ...]]) -> list[ReferenceLink]:
+    parsed: list[ReferenceLink] = []
+    current_domain = ""
+
+    for row_number, row in enumerate(rows[1:], start=2):
+        if not _row_has_content(row):
+            continue
+
+        if _looks_like_site_context_row(row):
+            current_domain = normalize_domain(row[0])
+            continue
+
+        tariff_name = normalize_tariff_name(row[0] if len(row) > 0 else "")
+        if not tariff_name:
+            continue
+
+        expected_url_part = normalize_text(row[3] if len(row) > 3 else "")
+        if not expected_url_part:
+            continue
+
+        comment_parts = []
+        primary_link = normalize_text(row[1] if len(row) > 1 else "")
+        opened_as = normalize_text(row[2] if len(row) > 2 else "")
+        if primary_link:
+            comment_parts.append(f"primary={primary_link}")
+        if opened_as:
+            comment_parts.append(f"opened_as={opened_as}")
+        comment = "; ".join(comment_parts)
+
+        if not current_domain:
+            continue
+
+        parsed.append(
+            ReferenceLink(
+                domain=current_domain,
+                page_url="",
+                tariff_name=tariff_name,
+                expected_url_part=expected_url_part,
+                match_type="contains",
+                comment=comment,
+                active=True,
+                aliases=(),
+            )
+        )
+
+    return parsed
 
 
 def load_reference_links(reference_file: str | Path) -> list[ReferenceLink]:
@@ -184,13 +247,24 @@ def load_reference_links(reference_file: str | Path) -> list[ReferenceLink]:
     if not rows:
         return []
 
+    header_names = {_normalize_header(header) for header in rows[0] if _normalize_header(header)}
+    compact_headers = {"сайт", "ссылка первичная", "как открывается", "что сверяем"}
+    if compact_headers.issubset(header_names):
+        parsed = _load_compact_rows(rows)
+        if not parsed:
+            raise ValueError(f"No valid reference rows found in compact workbook: {path}")
+        return parsed
+
     header_map = _header_map(rows[0])
     parsed: list[ReferenceLink] = []
     for row_number, row in enumerate(rows[1:], start=2):
-        if not any(cell is not None and normalize_text(cell) for cell in row):
+        if not _row_has_content(row):
             continue
         reference = _build_reference_link(header_map, row, row_number)
         if reference is not None:
             parsed.append(reference)
+
+    if not parsed:
+        raise ValueError(f"No valid reference rows found in workbook: {path}")
 
     return parsed

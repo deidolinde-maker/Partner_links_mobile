@@ -30,11 +30,28 @@ def _format_checked_at(value: str | None) -> str:
     return value
 
 
+def _build_report_url(build_url: str | None, report_path: str | None) -> str | None:
+    if not build_url:
+        return None
+
+    build_url = build_url.rstrip("/")
+    if not report_path:
+        return build_url
+
+    report_path = str(report_path).strip().lstrip("/")
+    if not report_path:
+        return build_url
+
+    return f"{build_url}/artifact/{report_path}"
+
+
 def build_validation_alert_message(
     summary: ValidationSummary,
     checked_at: str | None = None,
     build_url: str | None = None,
+    report_path: str | None = None,
 ) -> str:
+    report_url = _build_report_url(build_url, report_path)
     lines = [
         "Партнерские ссылки на лендах",
         "",
@@ -47,8 +64,8 @@ def build_validation_alert_message(
         f"Нет эталона: {summary.no_reference_rows}",
         f"Нет фактической ссылки: {summary.no_factual_link_rows}",
     ]
-    if build_url:
-        lines.extend(["", f"Отчет: {build_url}"])
+    if report_url:
+        lines.extend(["", f"Отчет: {report_url}"])
     return "\n".join(lines)
 
 

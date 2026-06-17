@@ -274,6 +274,39 @@ def test_validation_report_writer_and_summary(tmp_path: Path) -> None:
     assert summary.product_error_rows == 2
 
 
+def test_validation_alert_message_includes_artifact_link() -> None:
+    summary = summarize_validation_rows(
+        [
+            replace(_build_input_row(), validation_status=VALIDATION_STATUS_OK),
+            replace(_build_input_row(tariff_name="BLACK"), validation_status=VALIDATION_STATUS_NOT_OK),
+        ],
+        "reports/partner_links_mobile_validated_123.xlsx",
+        "pilot",
+    )
+
+    message = build_validation_alert_message(
+        summary,
+        checked_at="2026-06-11 09:55:23",
+        build_url="https://jenkins.example/job/1/",
+        report_path="reports/partner_links_mobile_validated_123.xlsx",
+    )
+
+    assert message == (
+        "Партнерские ссылки на лендах\n"
+        "\n"
+        "Дата проверки: 11.06.2026 09:55\n"
+        "\n"
+        "Всего проверено тарифов: 2\n"
+        "\n"
+        "OK: 1\n"
+        "НЕ OK: 1\n"
+        "Нет эталона: 0\n"
+        "Нет фактической ссылки: 0\n"
+        "\n"
+        "Отчет: https://jenkins.example/job/1/artifact/reports/partner_links_mobile_validated_123.xlsx"
+    )
+
+
 def test_alert_sender_skips_without_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("TELEGRAM_PROXY_URL", raising=False)
     monkeypatch.delenv("TELEGRAM_PROXY_AUTH_SECRET", raising=False)

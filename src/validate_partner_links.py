@@ -184,7 +184,12 @@ def run(argv: list[str] | None = None) -> int:
 
     checked_at = next((row.checked_at for row in validated_rows if row.checked_at), "")
     build_url = (os.getenv("BUILD_URL") or "").strip() or None
-    alert_message = build_validation_alert_message(summary, checked_at=checked_at, build_url=build_url)
+    alert_message = build_validation_alert_message(
+        summary,
+        checked_at=checked_at,
+        build_url=build_url,
+        report_path=str(output_path),
+    )
 
     print(
         f"[SUMMARY] total={summary.total_rows} ok={summary.ok_rows} not_ok={summary.not_ok_rows} "

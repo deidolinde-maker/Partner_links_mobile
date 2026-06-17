@@ -13,6 +13,7 @@ pipeline {
         booleanParam(name: 'HEADLESS', defaultValue: true, description: 'Run browser in headless mode')
         choice(name: 'TRACE', choices: ['off', 'retain-on-failure', 'on'], description: 'Playwright trace mode')
         choice(name: 'SCREENSHOT', choices: ['off', 'only-on-failure', 'on'], description: 'Screenshot mode')
+        booleanParam(name: 'USE_FINAL_URL_AS_FALLBACK', defaultValue: false, description: 'Use final URL when clicked URL is empty during validation')
         booleanParam(name: 'ENABLE_PERIODIC_ARTIFACT_PURGE', defaultValue: true, description: 'Every N builds, delete archived artifacts from previous builds.')
         string(name: 'PERIODIC_PURGE_EVERY', defaultValue: '5', description: 'Run full artifact purge every N-th build (integer >= 2).')
     }
@@ -30,6 +31,8 @@ pipeline {
         PIP_CACHE_DIR = "${JENKINS_HOME}/cache/pip"
         PYTHON_BIN_FILE = '.python_bin'
         REQ_HASH_FILE = '.requirements.sha256'
+        REFERENCE_LINKS_FILE = credentials('Links_mobile_tarriffs')
+        VALIDATION_REPORT_PATH = "reports/partner_links_mobile_validated_${BUILD_NUMBER}.xlsx"
     }
 
     stages {
@@ -185,9 +188,10 @@ fi
             }
         }
 
-        stage('Run') {
+        stage('Collect actual links') {
             steps {
-                sh '''#!/usr/bin/env bash
+                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                    sh '''#!/usr/bin/env bash
 set -euo pipefail
 
 python_bin="python3"
@@ -218,6 +222,75 @@ fi
 
 "$python_bin" "${pytest_args[@]}"
 '''
+                }
+
+                script {
+                    def latestReport = sh(
+                        script: '''#!/usr/bin/env bash
+set -euo pipefail
+
+python_bin="python3"
+if [ -f "$PYTHON_BIN_FILE" ]; then
+  python_bin="$(tr -d '\r\n' < "$PYTHON_BIN_FILE")"
+fi
+if [ ! -x "$python_bin" ]; then
+  python_bin=".venv/bin/python"
+fi
+
+latest_report="$("$python_bin" -c "from pathlib import Path; import sys; reports = sorted(Path('reports').glob('partner_links_mobile_*.xlsx'), key=lambda p: p.stat().st_mtime, reverse=True); sys.exit(1) if not reports else print(reports[0])")"
+printf '%s' "$latest_report"
+''',
+                        returnStdout: true
+                    ).trim()
+                    if (!(latestReport?.trim())) {
+                        error('First iteration report not found after stage 1')
+                    }
+                    env.FIRST_REPORT_PATH = latestReport
+                    echo "First iteration report: ${env.FIRST_REPORT_PATH}"
+                }
+            }
+        }
+
+        stage('Validate partner links') {
+            steps {
+                script {
+                    if (!(env.FIRST_REPORT_PATH?.trim())) {
+                        error('First iteration report path is missing')
+                    }
+
+                    withCredentials([
+                        string(credentialsId: 'telegram_proxy_url', variable: 'TELEGRAM_PROXY_URL'),
+                        string(credentialsId: 'telegram_proxy_auth_secret', variable: 'TELEGRAM_PROXY_AUTH_SECRET'),
+                        string(credentialsId: 'telegram_proxy_global_test', variable: 'TELEGRAM_PROXY_CHAT_CREDENTIAL')
+                    ]) {
+                        sh '''#!/usr/bin/env bash
+set -euo pipefail
+
+python_bin="python3"
+if [ -f "$PYTHON_BIN_FILE" ]; then
+  python_bin="$(tr -d '\r\n' < "$PYTHON_BIN_FILE")"
+fi
+if [ ! -x "$python_bin" ]; then
+  python_bin=".venv/bin/python"
+fi
+
+if [ "${USE_FINAL_URL_AS_FALLBACK}" = "true" ]; then
+  "$python_bin" -m src.validate_partner_links \
+    --input-report "$FIRST_REPORT_PATH" \
+    --reference-file "$REFERENCE_LINKS_FILE" \
+    --output-report "$VALIDATION_REPORT_PATH" \
+    --run-mode "$RUN_MODE" \
+    --use-final-url-as-fallback
+else
+  "$python_bin" -m src.validate_partner_links \
+    --input-report "$FIRST_REPORT_PATH" \
+    --reference-file "$REFERENCE_LINKS_FILE" \
+    --output-report "$VALIDATION_REPORT_PATH" \
+    --run-mode "$RUN_MODE"
+fi
+'''
+                    }
+                }
             }
         }
     }

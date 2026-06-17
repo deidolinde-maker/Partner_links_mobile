@@ -18,6 +18,11 @@ STATUS_BROWSER_ERROR = "Browser error"
 STATUS_JS_ERROR = "JS error"
 STATUS_UNKNOWN_ERROR = "Unknown error"
 
+VALIDATION_STATUS_OK = "OK"
+VALIDATION_STATUS_NOT_OK = "НЕ OK"
+VALIDATION_STATUS_NO_REFERENCE = "НЕТ ЭТАЛОНА"
+VALIDATION_STATUS_NO_FACTUAL_LINK = "НЕТ ФАКТИЧЕСКОЙ ССЫЛКИ"
+
 
 @dataclass(frozen=True, slots=True)
 class RunSettings:
@@ -82,6 +87,11 @@ class ReportRow:
     load_ms: str = ""
     environment: str = ""
     product_error: bool = False
+    reference_part: str = ""
+    validation_status: str = ""
+    validation_error: str = ""
+    match_key: str = ""
+    comparison_type: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +104,25 @@ class RunSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class ValidationSummary:
+    total_rows: int
+    ok_rows: int
+    not_ok_rows: int
+    no_reference_rows: int
+    no_factual_link_rows: int
+    report_path: str
+    run_mode: str
+
+    @property
+    def product_error_rows(self) -> int:
+        return self.not_ok_rows + self.no_factual_link_rows
+
+    @property
+    def successful_rows(self) -> int:
+        return self.total_rows - self.product_error_rows
+
+
+@dataclass(frozen=True, slots=True)
 class ClickResult:
     status: str
     error: str
@@ -101,3 +130,15 @@ class ClickResult:
     transition_type: str
     source_href: str
     product_error: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ReferenceLink:
+    domain: str
+    page_url: str
+    tariff_name: str
+    expected_url_part: str
+    match_type: str = "contains"
+    comment: str = ""
+    active: bool = True
+    aliases: tuple[str, ...] = ()

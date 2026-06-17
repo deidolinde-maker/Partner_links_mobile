@@ -171,6 +171,42 @@ def test_reference_loader_extracts_domain_from_labelled_site_row(tmp_path: Path)
     assert references[0].tariff_name == "все тарифы"
 
 
+def test_reference_loader_treats_root_page_url_as_fallback(tmp_path: Path) -> None:
+    reference_path = tmp_path / "Links_mobile_tarriffs.xlsx"
+    _write_xlsx(
+        reference_path,
+        REFERENCE_HEADERS,
+        [
+            [
+                "mts-home-gpon.ru",
+                "https://mts-home-gpon.ru/",
+                "МТС Супер",
+                "mts.ru/personal/mobilnaya-svyaz/tarifi/vse-tarifi/mts-super/?utm_source=mtspn",
+                "contains",
+                "",
+                True,
+            ],
+        ],
+    )
+
+    references = load_reference_links(reference_path)
+    index = ReferenceIndex.build(references)
+
+    result = evaluate_validation(
+        _build_input_row(
+            domain="mts-home-gpon.ru",
+            checked_page_url="https://mts-home-gpon.ru/moskva/mobilnaya-svyaz",
+            tariff_name="МТС Супер",
+            click_url="https://moskva.mts.ru/personal/mobilnaya-svyaz/tarifi/vse-tarifi/mts-super/?utm_source=mtspn&utm_medium=cpa",
+            final_url="https://moskva.mts.ru/personal/mobilnaya-svyaz/tarifi/vse-tarifi/mts-super/?utm_source=mtspn&utm_medium=cpa",
+        ),
+        index,
+    )
+
+    assert result.status == VALIDATION_STATUS_OK
+    assert result.reference_part == "mts.ru/personal/mobilnaya-svyaz/tarifi/vse-tarifi/mts-super/?utm_source=mtspn"
+
+
 def test_validation_handles_regex_and_fallback(tmp_path: Path) -> None:
     reference_path = tmp_path / "Links_mobile_tarriffs.xlsx"
     _write_xlsx(

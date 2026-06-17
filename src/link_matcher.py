@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, replace
 from urllib.parse import unquote
+from urllib.parse import urlsplit
 
 from src.reference_loader import (
     normalize_domain,
@@ -57,6 +58,13 @@ def build_expected_key(domain: str, page_url: str, tariff_name: str) -> str:
     return f"{domain}::{tariff_name}"
 
 
+def _is_root_page_url(page_url: str) -> bool:
+    if not page_url:
+        return False
+    parsed = urlsplit(page_url)
+    return parsed.path in {"", "/"} and not parsed.query and not parsed.fragment
+
+
 @dataclass(frozen=True, slots=True)
 class ReferenceMatch:
     reference: ReferenceLink
@@ -101,6 +109,15 @@ class ReferenceIndex:
                         matched_tariff_name=normalized_tariff,
                         key=key,
                     )
+                    if _is_root_page_url(normalized_page_url):
+                        fallback_key = build_expected_key(normalized_domain, "", normalized_tariff)
+                        if fallback_key in by_fallback_key:
+                            raise ValueError(f"Duplicate fallback reference key: {fallback_key}")
+                        by_fallback_key[fallback_key] = ReferenceMatch(
+                            reference=reference,
+                            matched_tariff_name=normalized_tariff,
+                            key=fallback_key,
+                        )
                 else:
                     key = build_expected_key(normalized_domain, "", normalized_tariff)
                     if key in by_fallback_key:

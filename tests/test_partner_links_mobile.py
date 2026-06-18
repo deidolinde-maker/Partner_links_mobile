@@ -14,12 +14,14 @@ from src.models import (
     ReportRow,
     STATUS_CARDS_NOT_FOUND,
     STATUS_BUTTON_NOT_FOUND,
+    STATUS_OK,
     STATUS_LOAD_ERROR,
     STATUS_URL_NOT_OPENED,
 )
 from src.page_loader import open_landing_page
 from src.popup_handler import close_common_popups
 from src.tariff_parser import detect_cards
+from config.landings import LANDINGS
 
 
 def _timestamp() -> str:
@@ -283,3 +285,191 @@ def test_partner_links_mobile(
             page.close()
         except Exception:
             pass
+
+
+class _FakeAvailabilityResponse:
+    def __init__(self, status: int):
+        self.status = status
+
+
+class _FakeAvailabilityPage:
+    def __init__(self, final_url: str, status: int, page_error: str | None = None):
+        self.url = "about:blank"
+        self._final_url = final_url
+        self._response = _FakeAvailabilityResponse(status)
+        self._page_error = page_error
+        self._pageerror_handler = None
+
+    def on(self, event: str, handler):
+        if event == "pageerror":
+            self._pageerror_handler = handler
+
+    def goto(self, url: str, wait_until: str, timeout: int):
+        self.url = self._final_url
+        if self._page_error and self._pageerror_handler is not None:
+            self._pageerror_handler(RuntimeError(self._page_error))
+        return self._response
+
+    def wait_for_load_state(self, state: str, timeout: int):
+        return None
+
+    def close(self):
+        return None
+
+
+class _FakeAvailabilityContext:
+    def __init__(self, page: _FakeAvailabilityPage):
+        self._page = page
+
+    def new_page(self):
+        return self._page
+
+
+class _FakeCardNode:
+    def __init__(
+        self,
+        *,
+        text: str = "",
+        href: str = "",
+        visible: bool = True,
+        box: dict[str, float] | None = None,
+        selector_map: dict[str, list["_FakeCardNode"]] | None = None,
+    ):
+        self._text = text
+        self._href = href
+        self._visible = visible
+        self._box = box or {"x": 0.0, "y": 0.0, "width": 100.0, "height": 100.0}
+        self._selector_map = selector_map or {}
+
+    def locator(self, selector: str):
+        return _FakeCardLocator(self._selector_map.get(selector, []))
+
+    def is_visible(self):
+        return self._visible
+
+    def inner_text(self, timeout: int = 0):
+        return self._text
+
+    def get_attribute(self, name: str):
+        if name == "href":
+            return self._href
+        return None
+
+    def bounding_box(self):
+        return self._box
+
+
+class _FakeCardLocator:
+    def __init__(self, nodes: list[_FakeCardNode]):
+        self._nodes = nodes
+
+    def all(self):
+        return self._nodes
+
+
+class _FakeCardPage:
+    def __init__(self, cards: list[_FakeCardNode]):
+        self._cards = cards
+
+    def locator(self, selector: str):
+        if selector == ".card-block":
+            return _FakeCardLocator(self._cards)
+        return _FakeCardLocator([])
+
+
+def test_detect_cards_prefers_beeline_connect_link_over_hidden_button() -> None:
+    landing = next(
+        item
+        for item in LANDINGS
+        if item.operator == "Beeline" and item.domain == "beeline-internet.online" and item.url.endswith("/tariffs-mobile")
+    )
+
+    title_node = _FakeCardNode(text="bee HIT")
+    connect_link = _FakeCardNode(
+        href="https://beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing",
+        text="Подключить",
+    )
+    hidden_button = _FakeCardNode(
+        href="",
+        text="Подключить",
+        visible=False,
+    )
+    card = _FakeCardNode(
+        text="bee HIT Подключить",
+        selector_map={
+            ".card-block__header-main [itemprop='name']": [title_node],
+            ".card-block__header-main .card-block__title": [title_node],
+            "[itemprop='name'].card-block__title": [title_node],
+            ".card-block__title": [title_node],
+            "[itemprop='name']": [title_node],
+            "[class*='title']": [title_node],
+            "[class*='name']": [title_node],
+            "[class*='tariff']": [title_node],
+            ".card-block__button.button-mobile-application.popup-mobile-beeline": [connect_link],
+            ".card-block__button.button-mobile-application": [connect_link],
+            ".card-block__button": [connect_link, hidden_button],
+            "a.card-block__button.button-mobile-application": [connect_link],
+            "a[href]": [connect_link],
+            "button": [hidden_button],
+        },
+    )
+
+    cards = detect_cards(_FakeCardPage([card]), landing)
+
+    assert len(cards) == 1
+    assert cards[0].title == "bee HIT"
+    assert cards[0].source_href == "https://beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing"
+
+
+def test_check_url_availability_treats_t2_503_as_success() -> None:
+    page = _FakeAvailabilityPage(
+        final_url="https://spb.t2.ru/promo/partner-all?utm_campaign=partner_m_webdealer_ooo_online_services_t2-ru_online&utm_medium=t2-ru_online&utm_source=webdealer&pageParams=askForRegion%3Dtrue",
+        status=503,
+    )
+    context = _FakeAvailabilityContext(page)
+
+    result = check_url_availability(
+        context,
+        "https://t2.ru/promo/partner-all?utm_source=webdealer&utm_medium=t2-ru_online&utm_campaign=partner_m_webdealer_ooo_online_services_t2-ru_online",
+        timeout_ms=1000,
+    )
+
+    assert result.status == STATUS_OK
+    assert result.http_status == "503"
+    assert result.final_url.startswith("https://spb.t2.ru/promo/partner-all")
+
+
+def test_check_url_availability_ignores_beeline_js_errors() -> None:
+    page = _FakeAvailabilityPage(
+        final_url="https://moskva.beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing",
+        status=200,
+        page_error="ReferenceError: banner is not defined",
+    )
+    context = _FakeAvailabilityContext(page)
+
+    result = check_url_availability(
+        context,
+        "https://beeline-internet.online/tariffs-mobile",
+        timeout_ms=1000,
+    )
+
+    assert result.status == STATUS_OK
+    assert result.error == ""
+
+
+def test_check_url_availability_reports_js_error_for_other_domains() -> None:
+    page = _FakeAvailabilityPage(
+        final_url="https://moskva.mts.ru/personal/mobilnaya-svyaz/tarifi/vse-tarifi/red/?utm_source=mtspn&utm_medium=cpa&utm_content=",
+        status=200,
+        page_error="ReferenceError: banner is not defined",
+    )
+    context = _FakeAvailabilityContext(page)
+
+    result = check_url_availability(
+        context,
+        "https://mts-home.online/mobilnaya-svyaz",
+        timeout_ms=1000,
+    )
+
+    assert result.status == "JS error"
+    assert result.error == "ReferenceError: banner is not defined"

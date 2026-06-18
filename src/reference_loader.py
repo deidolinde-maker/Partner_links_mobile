@@ -35,7 +35,12 @@ def normalize_domain(value: object) -> str:
     host = host.split("/")[0]
     if host.startswith("www."):
         host = host[4:]
-    return host.strip().lower()
+    host = host.strip().lower()
+    if host.endswith(".mts-home.online"):
+        return "mts-home.online"
+    if "beeline" in host:
+        return "beeline.ru"
+    return host
 
 
 def normalize_page_url(value: object) -> str:

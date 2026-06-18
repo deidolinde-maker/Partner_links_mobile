@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from time import perf_counter
+from urllib.parse import urlsplit
 
 from playwright.sync_api import BrowserContext, Error, Page, TimeoutError as PlaywrightTimeoutError
 
@@ -53,6 +54,7 @@ def check_url_availability(
         load_ms = int((perf_counter() - start) * 1000)
         final_url = (page.url or "").strip()
         http_status = str(response.status) if response is not None else ""
+        parsed_final_url = urlsplit(final_url if "://" in final_url else f"https://{final_url}") if final_url else None
 
         if final_url == "about:blank":
             return AvailabilityResult(
@@ -61,6 +63,21 @@ def check_url_availability(
                 http_status=http_status,
                 status=STATUS_ABOUT_BLANK,
                 error="Final URL is about:blank",
+                load_ms=load_ms,
+            )
+
+        if (
+            response is not None
+            and response.status == 503
+            and _is_t2_url(clean_url)
+            and _opened_final_url(clean_url, final_url)
+        ):
+            return AvailabilityResult(
+                url=clean_url,
+                final_url=final_url,
+                http_status=http_status,
+                status=STATUS_OK,
+                error="",
                 load_ms=load_ms,
             )
 
@@ -74,7 +91,7 @@ def check_url_availability(
                 load_ms=load_ms,
             )
 
-        if captured_errors:
+        if captured_errors and not _should_ignore_js_errors(clean_url, parsed_final_url):
             return AvailabilityResult(
                 url=clean_url,
                 final_url=final_url,
@@ -115,3 +132,20 @@ def check_url_availability(
     finally:
         page.close()
 
+
+def _opened_final_url(initial_url: str, final_url: str) -> bool:
+    final_clean = (final_url or "").strip()
+    if not final_clean or final_clean == "about:blank":
+        return False
+    return final_clean != initial_url.strip()
+
+
+def _is_t2_url(url: str) -> bool:
+    host = (urlsplit(url).netloc or "").lower()
+    return host == "t2.ru" or host.endswith(".t2.ru") or host.endswith("t2-ru.online")
+
+
+def _should_ignore_js_errors(url: str, parsed_final_url) -> bool:
+    host = (urlsplit(url).netloc or "").lower()
+    final_host = (parsed_final_url.netloc or "").lower() if parsed_final_url is not None else ""
+    return "beeline" in host or "beeline" in final_host

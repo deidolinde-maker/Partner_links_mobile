@@ -243,6 +243,42 @@ def test_reference_index_ignores_region_in_page_url(tmp_path: Path) -> None:
     assert result.match_key == "beeline.ru::/customers/products/toptariffs::топ тариф"
 
 
+def test_reference_index_normalizes_mts_home_region_subdomain(tmp_path: Path) -> None:
+    reference_path = tmp_path / "Links_mobile_tarriffs.xlsx"
+    _write_xlsx(
+        reference_path,
+        REFERENCE_HEADERS,
+        [
+            [
+                "mts-home.online",
+                "https://mts-home.online/",
+                "МТС Junior",
+                "mts.ru/personal/mobilnaya-svyaz/uslugi/mobilnaya-svyaz/mts-junior/?utm_source=mtspn",
+                "contains",
+                "",
+                True,
+            ],
+        ],
+    )
+
+    references = load_reference_links(reference_path)
+    index = ReferenceIndex.build(references)
+
+    result = evaluate_validation(
+        _build_input_row(
+            domain="sankt-peterburg.mts-home.online",
+            checked_page_url="https://sankt-peterburg.mts-home.online/mobilnaya-svyaz",
+            tariff_name="МТС Junior",
+            click_url="https://spb.mts.ru/personal/mobilnaya-svyaz/uslugi/mobilnaya-svyaz/mts-junior/?utm_source=mtspn",
+            final_url="https://spb.mts.ru/personal/mobilnaya-svyaz/uslugi/mobilnaya-svyaz/mts-junior/?utm_source=mtspn",
+        ),
+        index,
+    )
+
+    assert result.status == VALIDATION_STATUS_OK
+    assert result.match_key == "mts-home.online::junior"
+
+
 def test_validation_ignores_landing_number_in_actual_url(tmp_path: Path) -> None:
     reference_path = tmp_path / "Links_mobile_tarriffs.xlsx"
     _write_xlsx(
@@ -302,8 +338,8 @@ def test_reference_index_uses_general_page_row_for_any_tariff(tmp_path: Path) ->
 
     result = evaluate_validation(
         _build_input_row(
-            domain="online-beeline.ru",
-            checked_page_url="https://online-beeline.ru/tariffs-mobile",
+            domain="beeline-internet.online",
+            checked_page_url="https://beeline-internet.online/tariffs-mobile",
             tariff_name="bee HIT",
             click_url="https://moskva.beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing",
             final_url="https://moskva.beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing",
@@ -312,7 +348,7 @@ def test_reference_index_uses_general_page_row_for_any_tariff(tmp_path: Path) ->
     )
 
     assert result.status == VALIDATION_STATUS_OK
-    assert result.match_key == "online-beeline.ru::*::\u0432\u0441\u0435 \u0442\u0430\u0440\u0438\u0444\u044b"
+    assert result.match_key == "beeline.ru::*::\u0432\u0441\u0435 \u0442\u0430\u0440\u0438\u0444\u044b"
     assert result.reference_part == "beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing"
 
 

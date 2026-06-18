@@ -352,6 +352,52 @@ def test_reference_index_uses_general_page_row_for_any_tariff(tmp_path: Path) ->
     assert result.reference_part == "beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing"
 
 
+def test_reference_index_prefers_exact_tariff_over_general_page_row(tmp_path: Path) -> None:
+    reference_path = tmp_path / "Links_mobile_tarriffs.xlsx"
+    _write_xlsx(
+        reference_path,
+        REFERENCE_HEADERS,
+        [
+            [
+                "t2-ru.online",
+                "",
+                "\u0412\u0441\u0435 \u0442\u0430\u0440\u0438\u0444\u044b (\u043e\u0431\u0449\u0430\u044f \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0430)",
+                "t2.ru/tariffs?utm_campaign=tariffs_webdealer_ooo_online_services_t2-ru_online&utm_medium=t2-ru_online&utm_source=webdealer&pageParams=askForRegion%3Dtrue",
+                "contains",
+                "",
+                True,
+            ],
+            [
+                "t2-ru.online",
+                "",
+                "\u041f\u0410\u0420\u0422\u041d\u0415\u0420 \u041c",
+                "t2.ru/promo/partner-all?utm_campaign=partner_m_webdealer_ooo_online_services_t2-ru_online&utm_medium=t2-ru_online&utm_source=webdealer&pageParams=askForRegion%3Dtrue",
+                "contains",
+                "",
+                True,
+            ],
+        ],
+    )
+
+    references = load_reference_links(reference_path)
+    index = ReferenceIndex.build(references)
+
+    result = evaluate_validation(
+        _build_input_row(
+            domain="t2-ru.online",
+            checked_page_url="https://t2-ru.online/mobilnaya-svyaz",
+            tariff_name="\u041f\u0410\u0420\u0422\u041d\u0415\u0420 \u041c",
+            click_url="https://t2.ru/promo/partner-all?utm_source=webdealer&utm_medium=t2-ru_online&utm_campaign=partner_m_webdealer_ooo_online_services_t2-ru_online",
+            final_url="https://spb.t2.ru/promo/partner-all?utm_campaign=partner_m_webdealer_ooo_online_services_t2-ru_online&utm_medium=t2-ru_online&utm_source=webdealer&pageParams=askForRegion%3Dtrue",
+        ),
+        index,
+    )
+
+    assert result.status == VALIDATION_STATUS_OK
+    assert result.match_key == "t2-ru.online::\u043f\u0430\u0440\u0442\u043d\u0435\u0440 \u043c"
+    assert result.reference_part == "t2.ru/promo/partner-all?utm_campaign=partner_m_webdealer_ooo_online_services_t2-ru_online&utm_medium=t2-ru_online&utm_source=webdealer&pageParams=askForRegion%3Dtrue"
+
+
 def test_reference_loader_treats_root_page_url_as_fallback(tmp_path: Path) -> None:
     reference_path = tmp_path / "Links_mobile_tarriffs.xlsx"
     _write_xlsx(

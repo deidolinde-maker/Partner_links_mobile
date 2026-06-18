@@ -161,12 +161,12 @@ class ReferenceIndex:
             if match is not None:
                 return match
 
-        match = self.by_domain_wildcard_key.get(normalized_domain)
+        fallback_key = build_expected_key(normalized_domain, "", normalized_tariff)
+        match = self.by_fallback_key.get(fallback_key)
         if match is not None:
             return match
 
-        fallback_key = build_expected_key(normalized_domain, "", normalized_tariff)
-        return self.by_fallback_key.get(fallback_key)
+        return self.by_domain_wildcard_key.get(normalized_domain)
 
 
 def _is_general_page_reference(reference: ReferenceLink) -> bool:
@@ -197,9 +197,11 @@ def evaluate_validation(
     use_final_url_as_fallback: bool = False,
 ) -> MatchResult:
     lookup_key = build_lookup_key(row.domain, row.checked_page_url, row.tariff_name)
-    actual_url = normalize_text(row.click_url)
+    click_url = normalize_text(row.click_url)
+    final_url = normalize_text(row.final_url)
+    actual_url = click_url
     if not actual_url and use_final_url_as_fallback:
-        actual_url = normalize_text(row.final_url)
+        actual_url = final_url
 
     if not actual_url:
         return MatchResult(
@@ -241,6 +243,8 @@ def evaluate_validation(
     expected_part = normalize_text(reference_match.reference.expected_url_part)
     comparison_type = normalize_text(reference_match.reference.match_type).lower() or "contains"
     actual_variants = _url_variants(actual_url)
+    if final_url and final_url != actual_url and _is_related_url(actual_url, final_url):
+        actual_variants.extend(variant for variant in _url_variants(final_url) if variant not in actual_variants)
     if _comparison_passes(expected_part, actual_variants, comparison_type):
         return MatchResult(
             row=replace(
@@ -275,3 +279,13 @@ def evaluate_validation(
         comparison_type=comparison_type,
         product_error=True,
     )
+
+
+def _is_related_url(source_url: str, candidate_url: str) -> bool:
+    source_host = (urlsplit(source_url).netloc or "").lower()
+    candidate_host = (urlsplit(candidate_url).netloc or "").lower()
+    if not source_host or not candidate_host:
+        return False
+    if source_host == candidate_host:
+        return True
+    return candidate_host.endswith(f".{source_host}") or source_host.endswith(f".{candidate_host}")

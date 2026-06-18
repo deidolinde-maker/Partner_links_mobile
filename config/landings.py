@@ -54,6 +54,7 @@ BEELINE_CARD_SELECTORS = (
 
 BEELINE_TITLE_SELECTORS = (
     ".card-block__header-main [itemprop='name']",
+    "div[itemprop='name'].card-block__title.T1_TITLE",
     ".card-block__header-main .card-block__title",
     "[itemprop='name'].card-block__title",
     ".card-block__title",

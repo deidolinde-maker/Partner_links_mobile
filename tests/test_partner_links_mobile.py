@@ -372,7 +372,7 @@ class _FakeCardPage:
         self._cards = cards
 
     def locator(self, selector: str):
-        if selector == ".card-block":
+        if selector in {".card-block", ".card-block__body"}:
             return _FakeCardLocator(self._cards)
         return _FakeCardLocator([])
 
@@ -418,6 +418,45 @@ def test_detect_cards_prefers_beeline_connect_link_over_hidden_button() -> None:
 
     assert len(cards) == 1
     assert cards[0].title == "bee HIT"
+    assert cards[0].source_href == "https://beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing"
+
+
+def test_detect_cards_supports_beeline_body_card_container() -> None:
+    landing = next(
+        item
+        for item in LANDINGS
+        if item.operator == "Beeline" and item.domain == "beeline-ru.online" and item.url.endswith("/tariffs-mobile")
+    )
+
+    title_node = _FakeCardNode(text="bee SUPER START")
+    connect_link = _FakeCardNode(
+        href="https://beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing",
+        text="Подключить",
+    )
+    card = _FakeCardNode(
+        text="bee SUPER START Подключить",
+        selector_map={
+            ".card-block__header-main [itemprop='name']": [title_node],
+            ".card-block__header-main .card-block__title": [title_node],
+            "[itemprop='name'].card-block__title": [title_node],
+            ".card-block__title": [title_node],
+            "[itemprop='name']": [title_node],
+            "[class*='title']": [title_node],
+            "[class*='name']": [title_node],
+            "[class*='tariff']": [title_node],
+            ".card-block__button.button-mobile-application.popup-mobile-beeline": [connect_link],
+            ".card-block__button.button-mobile-application": [connect_link],
+            ".card-block__button": [connect_link],
+            "a.card-block__button.button-mobile-application": [connect_link],
+            "a[href]": [connect_link],
+            "button": [connect_link],
+        },
+    )
+
+    cards = detect_cards(_FakeCardPage([card]), landing)
+
+    assert len(cards) == 1
+    assert cards[0].title == "bee SUPER START"
     assert cards[0].source_href == "https://beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing"
 
 

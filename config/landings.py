@@ -49,6 +49,7 @@ MTS_CTA_SELECTORS = (
 )
 
 BEELINE_CARD_SELECTORS = (
+    ".card-block__body",
     ".card-block",
 )
 

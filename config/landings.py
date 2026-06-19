@@ -51,6 +51,7 @@ MTS_CTA_SELECTORS = (
 BEELINE_CARD_SELECTORS = (
     ".tariff-block.uc-BLOCK-MOBILE-1 .card-block",
     ".card-block[class*=' T']",
+    "[itemtype='http://schema.org/Product']",
     ".card-block__body",
     ".card-block",
 )

@@ -93,6 +93,14 @@ def _restore_landing(page: Page, landing: LandingConfig, timeout_ms: int) -> Non
         close_common_popups(page, timeout_ms=min(timeout_ms, 2_000))
 
 
+def _wait_for_card_shell(page: Page, landing: LandingConfig, timeout_ms: int) -> None:
+    selector = ", ".join(landing.card_selectors)
+    try:
+        page.wait_for_selector(selector, state="visible", timeout=min(timeout_ms, 7_000))
+    except Exception:
+        pass
+
+
 def _process_landing(
     page: Page,
     context,
@@ -129,6 +137,7 @@ def _process_landing(
         return rows
 
     close_common_popups(page, timeout_ms=min(timeout_ms, 2_000))
+    _wait_for_card_shell(page, landing, timeout_ms)
 
     cards = detect_cards(page, landing)
     if not cards:

@@ -372,7 +372,12 @@ class _FakeCardPage:
         self._cards = cards
 
     def locator(self, selector: str):
-        if selector in {".card-block", ".card-block__body"}:
+        if selector in {
+            ".card-block",
+            ".card-block__body",
+            ".card-block[class*=' T']",
+            ".tariff-block.uc-BLOCK-MOBILE-1 .card-block",
+        }:
             return _FakeCardLocator(self._cards)
         return _FakeCardLocator([])
 
@@ -399,6 +404,9 @@ def test_detect_cards_prefers_beeline_connect_link_over_hidden_button() -> None:
         selector_map={
             ".card-block__header-main [itemprop='name']": [title_node],
             ".card-block__header-main .card-block__title": [title_node],
+            ".card-block__header [itemprop='name']": [title_node],
+            ".card-block__header .card-block__title": [title_node],
+            ".card-block__header": [title_node],
             "[itemprop='name'].card-block__title": [title_node],
             ".card-block__title": [title_node],
             "[itemprop='name']": [title_node],
@@ -438,6 +446,9 @@ def test_detect_cards_supports_beeline_body_card_container() -> None:
         selector_map={
             ".card-block__header-main [itemprop='name']": [title_node],
             ".card-block__header-main .card-block__title": [title_node],
+            ".card-block__header [itemprop='name']": [title_node],
+            ".card-block__header .card-block__title": [title_node],
+            ".card-block__header": [title_node],
             "[itemprop='name'].card-block__title": [title_node],
             ".card-block__title": [title_node],
             "[itemprop='name']": [title_node],

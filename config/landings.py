@@ -49,11 +49,16 @@ MTS_CTA_SELECTORS = (
 )
 
 BEELINE_CARD_SELECTORS = (
+    ".tariff-block.uc-BLOCK-MOBILE-1 .card-block",
+    ".card-block[class*=' T']",
     ".card-block__body",
     ".card-block",
 )
 
 BEELINE_TITLE_SELECTORS = (
+    ".card-block__header [itemprop='name']",
+    ".card-block__header .card-block__title",
+    ".card-block__header",
     ".card-block__header-main [itemprop='name']",
     "div[itemprop='name'].card-block__title.T1_TITLE",
     ".card-block__header-main .card-block__title",

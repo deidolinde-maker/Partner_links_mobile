@@ -86,11 +86,11 @@ class ReportSink:
 
 
 @pytest.fixture(scope="session")
-def report_sink(run_settings: RunSettings, tmp_path_factory: pytest.TempPathFactory):
+def report_sink(run_settings: RunSettings):
     sink = ReportSink(rows=[])
     yield sink
 
-    report_dir = tmp_path_factory.mktemp("partner_links_reports")
+    report_dir = Path(run_settings.report_dir)
     report_path = write_report(sink.rows, report_dir)
     summary = summarize_rows(sink.rows, str(report_path), run_settings.run_mode)
 

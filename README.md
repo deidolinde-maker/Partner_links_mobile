@@ -1,17 +1,17 @@
 # Partner Links Mobile
 
-Automated checks for partner links in mobile tariff cards on production landing pages.
+Автоматическая проверка партнерских ссылок в карточках мобильных тарифов на продовых лендингах.
 
-## What it does
+## Что делает
 
-- opens production landing pages from `config/landings.py`;
-- finds visible mobile tariff cards;
-- clicks the CTA button inside each card;
-- captures the URL after the click;
-- checks the technical availability of the opened page;
-- writes an `.xlsx` report to `reports/`.
+- открывает продовые лендинги из `config/landings.py`;
+- находит видимые карточки мобильных тарифов;
+- кликает CTA-кнопку внутри карточки;
+- фиксирует URL после клика;
+- проверяет техническую доступность открытой страницы;
+- сохраняет `.xlsx`-отчет в `reports/`.
 
-## Installation
+## Установка
 
 ```bash
 python -m venv .venv
@@ -20,39 +20,39 @@ pip install -r requirements.txt
 python -m playwright install chromium
 ```
 
-## First iteration
+## Первая итерация
 
-Run all configured landings:
+Запуск всех настроенных лендингов:
 
 ```bash
 pytest
 ```
 
-Run one domain:
+Запуск одного домена:
 
 ```bash
 pytest --target domain --domain t2-ru.online
 ```
 
-Run one URL:
+Запуск одного URL:
 
 ```bash
 pytest --target url --url https://t2-ru.online/mobilnaya-svyaz
 ```
 
-Pilot mode:
+Pilot-режим:
 
 ```bash
 pytest --run-mode pilot
 ```
 
-Release mode:
+Release-режим:
 
 ```bash
 pytest --run-mode release
 ```
 
-Useful parameters:
+Полезные параметры:
 
 - `--target all|domain|url`
 - `--domain <domain>`
@@ -64,15 +64,15 @@ Useful parameters:
 - `--playwright-trace off|retain-on-failure|on`
 - `--screenshot off|on|only-on-failure`
 
-The first iteration report is saved as:
+Отчет первой итерации сохраняется как:
 
 `reports/partner_links_mobile_YYYY-MM-DD_HH-MM.xlsx`
 
-## Second iteration
+## Вторая итерация
 
-The second iteration validates the first report against the reference file from Jenkins secret file `Links_mobile_tarriffs`.
+Вторая итерация проверяет первый отчет по эталонному файлу из Jenkins secret file `Links_mobile_tarriffs`.
 
-Local run:
+Локальный запуск:
 
 ```bash
 python -m src.validate_partner_links \
@@ -81,7 +81,7 @@ python -m src.validate_partner_links \
   --output-report reports/partner_links_mobile_validated.xlsx
 ```
 
-Optional fallback:
+Опциональный fallback:
 
 ```bash
 python -m src.validate_partner_links \
@@ -91,24 +91,24 @@ python -m src.validate_partner_links \
   --use-final-url-as-fallback
 ```
 
-Validation statuses:
+Статусы валидации:
 
 - `OK`
 - `НЕ OK`
 - `НЕТ ЭТАЛОНА`
 - `НЕТ ФАКТИЧЕСКОЙ ССЫЛКИ`
 
-Release mode treats `НЕ OK` and `НЕТ ФАКТИЧЕСКОЙ ССЫЛКИ` as product errors. `НЕТ ЭТАЛОНА` is a reference-data issue and does not fail release by itself.
+Release-режим считает `НЕ OK` и `НЕТ ФАКТИЧЕСКОЙ ССЫЛКИ` продуктовыми ошибками. `НЕТ ЭТАЛОНА` — это проблема данных эталона, и сама по себе она не валит release.
 
 ## Jenkins
 
-Pipeline flow:
+Схема пайплайна:
 
-1. Stage 1 runs the Playwright checks and produces the first `.xlsx` report.
-2. Stage 2 reads that report, compares it with `Links_mobile_tarriffs`, writes a validated report, and sends a Telegram alert through the proxy.
-3. If `VALIDATION_ONLY=true`, Stage 1 is skipped and Stage 2 validates the latest report already present in `reports/`.
+1. Stage 1 запускает Playwright-проверки и создает отчет первой итерации `.xlsx`.
+2. Stage 2 читает этот отчет, сравнивает его с `Links_mobile_tarriffs`, создает валидационный отчет и отправляет Telegram-алерт через прокси.
+3. Если `VALIDATION_ONLY=true`, Stage 1 пропускается, а Stage 2 валидирует последний отчет, уже лежащий в `reports/`.
 
-Jenkins parameters:
+Параметры Jenkins:
 
 - `TARGET`
 - `VALIDATION_ONLY`
@@ -122,26 +122,26 @@ Jenkins parameters:
 - `ENABLE_PERIODIC_ARTIFACT_PURGE`
 - `PERIODIC_PURGE_EVERY`
 
-The pipeline uses:
+Пайплайн использует:
 
-- shared Playwright browser cache in `JENKINS_HOME/cache/ms-playwright`;
-- shared pip cache in `JENKINS_HOME/cache/pip`;
-- secret file credential `Links_mobile_tarriffs`;
+- общий кеш браузеров Playwright в `JENKINS_HOME/cache/ms-playwright`;
+- общий кеш pip в `JENKINS_HOME/cache/pip`;
+- секретный file credential `Links_mobile_tarriffs`;
 - Telegram proxy credentials:
   - `telegram_proxy_url`
   - `telegram_proxy_auth_secret`
-  - `telegram_proxy_global_test` (bound in Jenkins to `TELEGRAM_PROXY_CREDS`)
+  - `telegram_proxy_global_test` (в Jenkins привязан к `TELEGRAM_PROXY_CREDS`)
 
-## Jenkins UI selection
+## Выбор лендинга в Jenkins UI
 
-- If `TARGET=domain` and `DOMAIN` is empty, Jenkins shows a dropdown with available domains.
-- If `TARGET=url` and `URL` is empty, Jenkins shows a dropdown with available URLs.
-- The dropdown values are taken from `config/landings.py`, so new landings appear automatically after a repo update.
-- If `VALIDATION_ONLY=true`, Jenkins skips the browser run and automatically picks the newest first-iteration `.xlsx` report from `reports/`.
+- Если `TARGET=domain`, а `DOMAIN` пустой, Jenkins показывает dropdown со списком доступных доменов.
+- Если `TARGET=url`, а `URL` пустой, Jenkins показывает dropdown со списком доступных URL.
+- Значения в dropdown берутся из `config/landings.py`, поэтому новые лендинги появляются автоматически после обновления репозитория.
+- Если `VALIDATION_ONLY=true`, Jenkins пропускает браузерный прогон и автоматически выбирает самый новый first-iteration `.xlsx` отчет из `reports/`.
 
-## Jenkins cleanup
+## Очистка Jenkins
 
-- `ENABLE_PERIODIC_ARTIFACT_PURGE=true` enables periodic cleanup of old archived build artifacts.
-- `PERIODIC_PURGE_EVERY` controls how often cleanup runs. Default: `5`.
-- The cleanup step removes old `archive` and `allure-report` folders from older builds.
-- After each run the workspace temp files are cleaned: `artifacts`, `.pytest_cache`, `pytest-cache-files-*`, `__pycache__`.
+- `ENABLE_PERIODIC_ARTIFACT_PURGE=true` включает периодическую очистку старых архивированных артефактов сборок.
+- `PERIODIC_PURGE_EVERY` задает, как часто выполнять очистку. Значение по умолчанию: `5`.
+- Шаг очистки удаляет старые папки `archive` и `allure-report` у предыдущих сборок.
+- После каждого прогона workspace temp-файлы очищаются: `artifacts`, `.pytest_cache`, `pytest-cache-files-*`, `__pycache__`.

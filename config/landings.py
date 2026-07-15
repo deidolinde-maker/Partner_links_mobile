@@ -11,6 +11,7 @@ class LandingConfig:
     card_selectors: tuple[str, ...]
     title_selectors: tuple[str, ...]
     cta_selectors: tuple[str, ...]
+    click_timeout_ms: int | None = None
     comment: str = ""
 
 
@@ -147,22 +148,6 @@ LANDINGS: tuple[LandingConfig, ...] = (
     ),
     LandingConfig(
         operator="Beeline",
-        # domain="moskva.beeline-ru.online",
-        # url="https://moskva.beeline-ru.online/tariffs-mobile",
-        card_selectors=BEELINE_CARD_SELECTORS,
-        title_selectors=BEELINE_TITLE_SELECTORS,
-        cta_selectors=BEELINE_CARD_SELECTORS + ("a[href]", "button"),
-        comment="Beeline Moscow subdomain landing.",
-    ),
-    LandingConfig(
-        operator="Beeline",
-        card_selectors=BEELINE_CARD_SELECTORS,
-        title_selectors=BEELINE_TITLE_SELECTORS,
-        cta_selectors=BEELINE_CARD_SELECTORS + ("a[href]", "button"),
-        comment="Beeline RU landing.",
-    ),
-    LandingConfig(
-        operator="Beeline",
         domain="online-beeline.ru",
         url="https://online-beeline.ru/tariffs-mobile",
         card_selectors=BEELINE_CARD_SELECTORS,
@@ -186,6 +171,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         card_selectors=T2_CARD_SELECTORS,
         title_selectors=T2_TITLE_SELECTORS,
         cta_selectors=T2_CARD_SELECTORS + ("a[href]", "button"),
+        click_timeout_ms=20_000,
         comment="T2 main landing. Selectors reused from the reference project.",
     ),
     LandingConfig(
@@ -195,6 +181,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         card_selectors=T2_CARD_SELECTORS,
         title_selectors=T2_TITLE_SELECTORS,
         cta_selectors=T2_CARD_SELECTORS + ("a[href]", "button"),
+        click_timeout_ms=20_000,
         comment="T2 Saint Petersburg landing. Selectors reused from the reference project.",
     ),
 )

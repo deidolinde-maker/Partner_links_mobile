@@ -112,6 +112,7 @@ def _process_landing(
     artifact_prefix: str,
 ) -> list[ReportRow]:
     rows: list[ReportRow] = []
+    click_timeout_ms = landing.click_timeout_ms or timeout_ms
 
     opened, load_error = open_landing_page(page, landing.url, timeout_ms)
     if not opened:
@@ -192,7 +193,7 @@ def _process_landing(
             index += 1
             continue
 
-        click_result = click_card_cta(page, context, cta, timeout_ms)
+        click_result = click_card_cta(page, context, cta, click_timeout_ms)
         clicked_url = click_result.clicked_url
         error = click_result.error
         product_error = click_result.product_error
@@ -202,7 +203,7 @@ def _process_landing(
         page_load_status = click_result.status
 
         if clicked_url:
-            availability = check_url_availability(context, clicked_url, timeout_ms)
+            availability = check_url_availability(context, clicked_url, click_timeout_ms)
             load_ms = str(availability.load_ms)
             http_status = availability.http_status
             final_url = availability.final_url
@@ -442,7 +443,7 @@ def test_detect_cards_supports_beeline_body_card_container() -> None:
     landing = next(
         item
         for item in LANDINGS
-        if item.operator == "Beeline" and item.domain == "beeline-ru.online" and item.url.endswith("/tariffs-mobile")
+        if item.operator == "Beeline" and item.domain == "beeline-internet.online" and item.url.endswith("/tariffs-mobile")
     )
 
     title_node = _FakeCardNode(text="bee SUPER START")

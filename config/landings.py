@@ -40,27 +40,12 @@ MTS_CARD_SELECTORS = (
     ".card-one",
 )
 
-MTS_CTA_SELECTORS = (
-    "button.button-red.card-one__button.button-mobile-application",
-    "button.button-mobile-application",
-    "button.card-one__button",
-    "button.button-red.card-one__button",
-    "a[href]",
-)
-
 BEELINE_CARD_SELECTORS = (
-    ".tariff-block.uc-BLOCK-MOBILE-1 .card-block",
-    ".card-block[class*=' T']",
-    "[itemtype='http://schema.org/Product']",
     ".card-block",
 )
 
 BEELINE_TITLE_SELECTORS = (
-    ".card-block__header [itemprop='name']",
-    ".card-block__header .card-block__title",
-    ".card-block__header",
     ".card-block__header-main [itemprop='name']",
-    "div[itemprop='name'].card-block__title.T1_TITLE",
     ".card-block__header-main .card-block__title",
     "[itemprop='name'].card-block__title",
     ".card-block__title",
@@ -86,14 +71,6 @@ T2_TITLE_SELECTORS = (
     "[class*='tariff']",
 )
 
-T2_CTA_SELECTORS = (
-    ".card-new__button.button-mobile-application",
-    ".card-new__button",
-    "button.button-mobile-application",
-    "button",
-    "a[href]",
-)
-
 
 LANDINGS: tuple[LandingConfig, ...] = (
     LandingConfig(
@@ -102,7 +79,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://mts-home-gpon.ru/moskva/mobilnaya-svyaz",
         card_selectors=MTS_CARD_SELECTORS,
         title_selectors=MTS_TITLE_SELECTORS,
-        cta_selectors=MTS_CTA_SELECTORS,
+        cta_selectors=MTS_CARD_SELECTORS + ("a[href]", "button"),
         comment="MTS Moscow landing.",
     ),
     LandingConfig(
@@ -111,7 +88,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://mts-home-gpon.ru/sankt-peterburg/mobilnaya-svyaz",
         card_selectors=MTS_CARD_SELECTORS,
         title_selectors=MTS_TITLE_SELECTORS,
-        cta_selectors=MTS_CTA_SELECTORS,
+        cta_selectors=MTS_CARD_SELECTORS + ("a[href]", "button"),
         comment="MTS Saint Petersburg landing.",
     ),
     LandingConfig(
@@ -120,7 +97,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://mts-home.online/mobilnaya-svyaz",
         card_selectors=MTS_CARD_SELECTORS,
         title_selectors=MTS_TITLE_SELECTORS,
-        cta_selectors=MTS_CTA_SELECTORS,
+        cta_selectors=MTS_CARD_SELECTORS + ("a[href]", "button"),
         comment="MTS landing without region prefix.",
     ),
     LandingConfig(
@@ -129,7 +106,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://sankt-peterburg.mts-home.online/mobilnaya-svyaz",
         card_selectors=MTS_CARD_SELECTORS,
         title_selectors=MTS_TITLE_SELECTORS,
-        cta_selectors=MTS_CTA_SELECTORS,
+        cta_selectors=MTS_CARD_SELECTORS + ("a[href]", "button"),
         comment="MTS Saint Petersburg subdomain.",
     ),
     LandingConfig(
@@ -138,7 +115,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://mts-home-online.ru/moskva/mobilnaya-svyaz",
         card_selectors=MTS_CARD_SELECTORS,
         title_selectors=MTS_TITLE_SELECTORS,
-        cta_selectors=MTS_CTA_SELECTORS,
+        cta_selectors=MTS_CARD_SELECTORS + ("a[href]", "button"),
         comment="MTS alt domain Moscow landing.",
     ),
     LandingConfig(
@@ -147,7 +124,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://mts-home-online.ru/sankt-peterburg/mobilnaya-svyaz",
         card_selectors=MTS_CARD_SELECTORS,
         title_selectors=MTS_TITLE_SELECTORS,
-        cta_selectors=MTS_CTA_SELECTORS,
+        cta_selectors=MTS_CARD_SELECTORS + ("a[href]", "button"),
         comment="MTS alt domain Saint Petersburg landing.",
     ),
     LandingConfig(
@@ -156,14 +133,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://beeline-internet.online/tariffs-mobile",
         card_selectors=BEELINE_CARD_SELECTORS,
         title_selectors=BEELINE_TITLE_SELECTORS,
-        cta_selectors=(
-            ".card-block__button.button-mobile-application.popup-mobile-beeline",
-            ".card-block__button.button-mobile-application",
-            ".card-block__button",
-            "a.card-block__button.button-mobile-application",
-            "a[href]",
-            "button",
-        ),
+        cta_selectors=BEELINE_CARD_SELECTORS + ("a[href]", "button"),
         comment="Beeline main landing.",
     ),
     LandingConfig(
@@ -172,46 +142,23 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://beeline-internet.online/sankt-peterburg/tariffs-mobile",
         card_selectors=BEELINE_CARD_SELECTORS,
         title_selectors=BEELINE_TITLE_SELECTORS,
-        cta_selectors=(
-            ".card-block__button.button-mobile-application.popup-mobile-beeline",
-            ".card-block__button.button-mobile-application",
-            ".card-block__button",
-            "a.card-block__button.button-mobile-application",
-            "a[href]",
-            "button",
-        ),
+        cta_selectors=BEELINE_CARD_SELECTORS + ("a[href]", "button"),
         comment="Beeline Saint Petersburg landing.",
     ),
     LandingConfig(
         operator="Beeline",
-        domain="moskva.beeline-ru.online",
-        url="https://moskva.beeline-ru.online/tariffs-mobile",
+        # domain="moskva.beeline-ru.online",
+        # url="https://moskva.beeline-ru.online/tariffs-mobile",
         card_selectors=BEELINE_CARD_SELECTORS,
         title_selectors=BEELINE_TITLE_SELECTORS,
-        cta_selectors=(
-            ".card-block__button.button-mobile-application.popup-mobile-beeline",
-            ".card-block__button.button-mobile-application",
-            ".card-block__button",
-            "a.card-block__button.button-mobile-application",
-            "a[href]",
-            "button",
-        ),
+        cta_selectors=BEELINE_CARD_SELECTORS + ("a[href]", "button"),
         comment="Beeline Moscow subdomain landing.",
     ),
     LandingConfig(
         operator="Beeline",
-        domain="beeline-ru.online",
-        url="https://beeline-ru.online/tariffs-mobile",
         card_selectors=BEELINE_CARD_SELECTORS,
         title_selectors=BEELINE_TITLE_SELECTORS,
-        cta_selectors=(
-            ".card-block__button.button-mobile-application.popup-mobile-beeline",
-            ".card-block__button.button-mobile-application",
-            ".card-block__button",
-            "a.card-block__button.button-mobile-application",
-            "a[href]",
-            "button",
-        ),
+        cta_selectors=BEELINE_CARD_SELECTORS + ("a[href]", "button"),
         comment="Beeline RU landing.",
     ),
     LandingConfig(
@@ -220,14 +167,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://online-beeline.ru/tariffs-mobile",
         card_selectors=BEELINE_CARD_SELECTORS,
         title_selectors=BEELINE_TITLE_SELECTORS,
-        cta_selectors=(
-            ".card-block__button.button-mobile-application.popup-mobile-beeline",
-            ".card-block__button.button-mobile-application",
-            ".card-block__button",
-            "a.card-block__button.button-mobile-application",
-            "a[href]",
-            "button",
-        ),
+        cta_selectors=BEELINE_CARD_SELECTORS + ("a[href]", "button"),
         comment="Online Beeline main landing.",
     ),
     LandingConfig(
@@ -236,14 +176,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://online-beeline.ru/sankt-peterburg/tariffs-mobile",
         card_selectors=BEELINE_CARD_SELECTORS,
         title_selectors=BEELINE_TITLE_SELECTORS,
-        cta_selectors=(
-            ".card-block__button.button-mobile-application.popup-mobile-beeline",
-            ".card-block__button.button-mobile-application",
-            ".card-block__button",
-            "a.card-block__button.button-mobile-application",
-            "a[href]",
-            "button",
-        ),
+        cta_selectors=BEELINE_CARD_SELECTORS + ("a[href]", "button"),
         comment="Online Beeline Saint Petersburg landing.",
     ),
     LandingConfig(
@@ -252,7 +185,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://t2-ru.online/mobilnaya-svyaz",
         card_selectors=T2_CARD_SELECTORS,
         title_selectors=T2_TITLE_SELECTORS,
-        cta_selectors=T2_CTA_SELECTORS,
+        cta_selectors=T2_CARD_SELECTORS + ("a[href]", "button"),
         comment="T2 main landing. Selectors reused from the reference project.",
     ),
     LandingConfig(
@@ -261,7 +194,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://t2-ru.online/sankt-peterburg/mobilnaya-svyaz",
         card_selectors=T2_CARD_SELECTORS,
         title_selectors=T2_TITLE_SELECTORS,
-        cta_selectors=T2_CTA_SELECTORS,
+        cta_selectors=T2_CARD_SELECTORS + ("a[href]", "button"),
         comment="T2 Saint Petersburg landing. Selectors reused from the reference project.",
     ),
 )

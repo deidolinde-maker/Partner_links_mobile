@@ -381,3 +381,55 @@ def test_click_card_cta_waits_for_new_tab_url() -> None:
     assert result.transition_type == "new_tab"
     assert result.clicked_url == "https://krasnodar.t2.ru/tariffs?utm_campaign=tariffs_webdealer_ooo_online_services_piter-online_operatory_t2&utm_medium=piter-online&utm_source=webdealer&pageParams=askForRegion%3Dtrue"
     assert popup_page.closed is True
+
+
+class _FakeAvailabilityResponse:
+    def __init__(self, status: int) -> None:
+        self.status = status
+
+
+class _FakeAvailabilityPage:
+    def __init__(self, url: str, status: int) -> None:
+        self.url = url
+        self._status = status
+        self.closed = False
+
+    def on(self, *_args, **_kwargs) -> None:
+        return None
+
+    def goto(self, *_args, **_kwargs) -> _FakeAvailabilityResponse:
+        return _FakeAvailabilityResponse(self._status)
+
+    def wait_for_load_state(self, *_args, **_kwargs) -> None:
+        return None
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _FakeAvailabilityContext:
+    def __init__(self, page: _FakeAvailabilityPage) -> None:
+        self._page = page
+
+    def new_page(self) -> _FakeAvailabilityPage:
+        return self._page
+
+
+def test_check_url_availability_treats_t2_503_as_ok() -> None:
+    from src.availability_checker import check_url_availability
+
+    page = _FakeAvailabilityPage(
+        url="https://t2.ru/tariffs?utm_source=webdealer&utm_medium=piter-online&utm_campaign=tariffs_webdealer_ooo_online_services_piter-online_operatory_t2",
+        status=503,
+    )
+    context = _FakeAvailabilityContext(page)
+
+    result = check_url_availability(
+        context,
+        "https://t2.ru/tariffs?utm_source=webdealer&utm_medium=piter-online&utm_campaign=tariffs_webdealer_ooo_online_services_piter-online_operatory_t2",
+        timeout_ms=1_000,
+    )
+
+    assert result.status == "Успешно"
+    assert result.http_status == "503"
+    assert page.closed is True

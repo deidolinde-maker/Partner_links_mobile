@@ -66,12 +66,7 @@ def check_url_availability(
                 load_ms=load_ms,
             )
 
-        if (
-            response is not None
-            and response.status == 503
-            and _is_t2_url(clean_url)
-            and _opened_final_url(clean_url, final_url)
-        ):
+        if response is not None and response.status == 503 and _is_t2_url(clean_url):
             return AvailabilityResult(
                 url=clean_url,
                 final_url=final_url,
@@ -131,15 +126,6 @@ def check_url_availability(
         )
     finally:
         page.close()
-
-
-def _opened_final_url(initial_url: str, final_url: str) -> bool:
-    final_clean = (final_url or "").strip()
-    if not final_clean or final_clean == "about:blank":
-        return False
-    return final_clean != initial_url.strip()
-
-
 def _is_t2_url(url: str) -> bool:
     host = (urlsplit(url).netloc or "").lower()
     return host == "t2.ru" or host.endswith(".t2.ru") or host.endswith("t2-ru.online")

@@ -34,6 +34,34 @@ def _wait_for_new_page(context: BrowserContext, before_pages: set[Page], timeout
     return None
 
 
+def _wait_for_destination_page(
+    context: BrowserContext,
+    before_pages: set[Page],
+    before_url: str,
+    timeout_ms: int,
+) -> Page | None:
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        pages = list(context.pages)
+
+        for candidate in reversed(pages):
+            if candidate in before_pages:
+                continue
+            current_url = (candidate.url or "").strip()
+            if current_url and current_url != "about:blank" and current_url != before_url:
+                return candidate
+
+        for candidate in reversed(pages):
+            if candidate not in before_pages:
+                continue
+            current_url = (candidate.url or "").strip()
+            if current_url and current_url != "about:blank" and current_url != before_url:
+                return candidate
+
+        time.sleep(0.1)
+    return None
+
+
 def click_card_cta(
     page: Page,
     context: BrowserContext,
@@ -61,12 +89,12 @@ def click_card_cta(
 
     before_url = page.url
     before_pages = set(context.pages)
-    new_page = None
+    destination_page = None
 
     try:
         cta.click(timeout=timeout_ms)
     except PlaywrightTimeoutError:
-        new_page = _wait_for_new_page(context, before_pages, timeout_ms)
+        destination_page = _wait_for_destination_page(context, before_pages, before_url, timeout_ms)
     except Error as exc:
         return ClickResult(
             status=STATUS_BUTTON_NOT_CLICKABLE,
@@ -77,10 +105,10 @@ def click_card_cta(
             product_error=True,
         )
 
-    if target_blank and new_page is None:
-        new_page = _wait_for_new_page(context, before_pages, min(timeout_ms, 3_000))
+    if destination_page is None:
+        destination_page = _wait_for_destination_page(context, before_pages, before_url, timeout_ms)
 
-    if new_page is None and target_blank and source_href:
+    if destination_page is None and target_blank and source_href:
         return ClickResult(
             status="Успешно",
             error="",
@@ -90,7 +118,7 @@ def click_card_cta(
             product_error=False,
         )
 
-    if new_page is None and data_href:
+    if destination_page is None and data_href:
         return ClickResult(
             status="Успешно",
             error="",
@@ -100,14 +128,15 @@ def click_card_cta(
             product_error=False,
         )
 
-    if new_page is not None:
+    if destination_page is not None:
         try:
-            new_page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
+            destination_page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
         except Exception:
             pass
-        clicked_url = (new_page.url or "").strip()
+        clicked_url = (destination_page.url or "").strip()
         try:
-            new_page.close()
+            if destination_page is not page:
+                destination_page.close()
         except Exception:
             pass
         if not clicked_url:
@@ -115,7 +144,7 @@ def click_card_cta(
                 status=STATUS_URL_NOT_OPENED,
                 error="New tab opened without URL",
                 clicked_url="",
-                transition_type="new_tab",
+                transition_type="new_tab" if destination_page is not page else "same_tab",
                 source_href=source_href,
                 product_error=True,
             )
@@ -123,7 +152,7 @@ def click_card_cta(
             status="Успешно",
             error="",
             clicked_url=clicked_url,
-            transition_type="new_tab",
+            transition_type="new_tab" if destination_page is not page else "same_tab",
             source_href=source_href,
             product_error=False,
         )

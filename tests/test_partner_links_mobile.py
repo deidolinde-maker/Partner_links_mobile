@@ -287,13 +287,22 @@ def test_partner_links_mobile(
 
 class _FakePopupPage:
     def __init__(self, url: str = "about:blank") -> None:
-        self.url = url
+        self._urls = [url]
+        self._access_count = 0
+        self.closed = False
+
+    @property
+    def url(self) -> str:
+        index = min(self._access_count, len(self._urls) - 1)
+        value = self._urls[index]
+        self._access_count += 1
+        return value
 
     def wait_for_load_state(self, *_args, **_kwargs) -> None:
         return None
 
     def close(self) -> None:
-        return None
+        self.closed = True
 
 
 class _FakePopupContext:
@@ -333,3 +342,42 @@ def test_click_card_cta_uses_data_href_for_popup_button() -> None:
     assert result.transition_type == "popup"
     assert result.clicked_url == "https://t2.ru/tariffs?utm_source=webdealer&utm_medium=piter-online&utm_campaign=tariffs_webdealer_ooo_online_services_piter-online_operatory_t2"
     assert result.product_error is False
+
+
+class _FakeDelayedPopupLocator(_FakePopupLocator):
+    def __init__(self, attributes: dict[str, str], context: _FakePopupContext, popup_page: _FakePopupPage) -> None:
+        super().__init__(attributes)
+        self._context = context
+        self._popup_page = popup_page
+
+    def click(self, *_args, **_kwargs) -> None:
+        self.clicked = True
+        self._context.pages.append(self._popup_page)
+
+
+def test_click_card_cta_waits_for_new_tab_url() -> None:
+    main_page = _FakePopupPage("https://t2-ru.online/mobilnaya-svyaz")
+    popup_page = _FakePopupPage()
+    popup_page._urls = [
+        "about:blank",
+        "about:blank",
+        "https://krasnodar.t2.ru/tariffs?utm_campaign=tariffs_webdealer_ooo_online_services_piter-online_operatory_t2&utm_medium=piter-online&utm_source=webdealer&pageParams=askForRegion%3Dtrue",
+    ]
+    context = _FakePopupContext(main_page)
+    cta = _FakeDelayedPopupLocator(
+        {
+            "class": "card-new__button button-mobile-application",
+            "href": "https://t2.ru/tariffs?utm_source=webdealer&utm_medium=piter-online&utm_campaign=tariffs_webdealer_ooo_online_services_piter-online_operatory_t2",
+            "target": "_blank",
+        },
+        context=context,
+        popup_page=popup_page,
+    )
+
+    result = click_card_cta(main_page, context, cta, timeout_ms=500)
+
+    assert cta.clicked is True
+    assert result.status == "Успешно"
+    assert result.transition_type == "new_tab"
+    assert result.clicked_url == "https://krasnodar.t2.ru/tariffs?utm_campaign=tariffs_webdealer_ooo_online_services_piter-online_operatory_t2&utm_medium=piter-online&utm_source=webdealer&pageParams=askForRegion%3Dtrue"
+    assert popup_page.closed is True

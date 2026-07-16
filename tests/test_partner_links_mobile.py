@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -392,6 +393,61 @@ class _FakeCardPage:
         return _FakeCardLocator([])
 
 
+class _FakePopupPage:
+    def __init__(self, final_url: str):
+        self.url = "about:blank"
+        self._final_url = final_url
+        self.closed = False
+
+    def wait_for_url(self, predicate, timeout: int):
+        self.url = self._final_url
+        return None
+
+    def wait_for_load_state(self, state: str, timeout: int):
+        return None
+
+    def close(self):
+        self.closed = True
+
+
+class _FakePopupPageHost:
+    def __init__(self, popup_page: _FakePopupPage):
+        self.url = "https://t2-ru.online/mobilnaya-svyaz"
+        self._popup_page = popup_page
+
+    @contextmanager
+    def expect_popup(self, timeout: int):
+        class _PopupInfo:
+            def __init__(self, value):
+                self.value = value
+
+        yield _PopupInfo(self._popup_page)
+
+
+class _FakePopupContext:
+    def __init__(self, page: _FakePopupPageHost):
+        self.pages = [page]
+
+
+class _FakePopupLocator:
+    def __init__(self, href: str, target: str = "_blank"):
+        self._href = href
+        self._target = target
+
+    def get_attribute(self, name: str):
+        if name == "href":
+            return self._href
+        if name == "target":
+            return self._target
+        return None
+
+    def scroll_into_view_if_needed(self, timeout: int):
+        return None
+
+    def click(self, timeout: int):
+        return None
+
+
 def test_detect_cards_prefers_beeline_connect_link_over_hidden_button() -> None:
     landing = next(
         item
@@ -437,6 +493,24 @@ def test_detect_cards_prefers_beeline_connect_link_over_hidden_button() -> None:
     assert len(cards) == 1
     assert cards[0].title == "bee HIT"
     assert cards[0].source_href == "https://beeline.ru/customers/products/toptariffs/?utm_source=mobideal&utm_medium=cpa&utm_campaign=landing"
+
+
+def test_click_card_cta_uses_new_tab_for_target_blank_links() -> None:
+    popup_page = _FakePopupPage(
+        final_url="https://krasnodar.t2.ru/tariffs?utm_campaign=tariffs_webdealer_ooo_online_services_piter-online_operatory_t2&utm_medium=piter-online&utm_source=webdealer&pageParams=askForRegion%3Dtrue"
+    )
+    page = _FakePopupPageHost(popup_page)
+    context = _FakePopupContext(page)
+    cta = _FakePopupLocator(
+        href="https://t2.ru/tariffs?utm_source=webdealer&utm_medium=piter-online&utm_campaign=tariffs_webdealer_ooo_online_services_piter-online_operatory_t2"
+    )
+
+    result = click_card_cta(page, context, cta, timeout_ms=20_000)
+
+    assert result.status == "Успешно"
+    assert result.transition_type == "new_tab"
+    assert result.clicked_url == popup_page.url
+    assert result.clicked_url.startswith("https://krasnodar.t2.ru/tariffs")
 
 
 def test_detect_cards_supports_beeline_body_card_container() -> None:

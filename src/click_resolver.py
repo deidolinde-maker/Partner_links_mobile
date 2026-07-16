@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from playwright.sync_api import BrowserContext, Error, Locator, Page, TimeoutError as PlaywrightTimeoutError
 
 from src.models import ClickResult, STATUS_BUTTON_NOT_CLICKABLE, STATUS_URL_NOT_OPENED
@@ -14,12 +16,36 @@ def _safe_href(locator: Locator | None) -> str:
         return ""
 
 
-def _nav_wait_ms(timeout_ms: int) -> int:
+def _safe_attr(locator: Locator | None, name: str) -> str:
+    if locator is None:
+        return ""
+    try:
+        return (locator.get_attribute(name) or "").strip()
+    except Exception:
+        return ""
+
+
+def _nav_wait_ms(timeout_ms: int, target_blank: bool) -> int:
+    if target_blank:
+        return timeout_ms
     return min(timeout_ms, 10_000)
 
 
-def _page_wait_ms(timeout_ms: int) -> int:
+def _page_wait_ms(timeout_ms: int, target_blank: bool) -> int:
+    if target_blank:
+        return timeout_ms
     return min(timeout_ms, 5_000)
+
+
+def _wait_for_new_page(context: BrowserContext, before_pages: set[Page], timeout_ms: int) -> Page | None:
+    deadline = time.monotonic() + (timeout_ms / 1000.0)
+    while time.monotonic() < deadline:
+        extra_pages = [candidate for candidate in context.pages if candidate not in before_pages]
+        if extra_pages:
+            return extra_pages[-1]
+        time.sleep(0.2)
+    extra_pages = [candidate for candidate in context.pages if candidate not in before_pages]
+    return extra_pages[-1] if extra_pages else None
 
 
 def click_card_cta(
@@ -45,20 +71,20 @@ def click_card_cta(
     except Exception:
         pass
 
+    target_blank = _safe_attr(cta, "target").lower() == "_blank"
     before_url = page.url
     before_pages = set(context.pages)
     new_page = None
-    nav_wait_ms = _nav_wait_ms(timeout_ms)
-    page_wait_ms = _page_wait_ms(timeout_ms)
+    nav_wait_ms = _nav_wait_ms(timeout_ms, target_blank)
+    page_wait_ms = _page_wait_ms(timeout_ms, target_blank)
 
     try:
-        with context.expect_page(timeout=page_wait_ms) as new_page_info:
+        expect_popup = page.expect_popup if target_blank else context.expect_page
+        with expect_popup(timeout=page_wait_ms) as new_page_info:
             cta.click(timeout=timeout_ms)
         new_page = new_page_info.value
     except PlaywrightTimeoutError:
-        extra_pages = [candidate for candidate in context.pages if candidate not in before_pages]
-        if extra_pages:
-            new_page = extra_pages[-1]
+        new_page = _wait_for_new_page(context, before_pages, nav_wait_ms)
     except Error as exc:
         return ClickResult(
             status=STATUS_BUTTON_NOT_CLICKABLE,

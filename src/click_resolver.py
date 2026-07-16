@@ -7,45 +7,31 @@ from playwright.sync_api import BrowserContext, Error, Locator, Page, TimeoutErr
 from src.models import ClickResult, STATUS_BUTTON_NOT_CLICKABLE, STATUS_URL_NOT_OPENED
 
 
-def _safe_href(locator: Locator | None) -> str:
+def _safe_attr(locator: Locator | None, attr: str) -> str:
     if locator is None:
         return ""
     try:
-        return (locator.get_attribute("href") or "").strip()
+        return (locator.get_attribute(attr) or "").strip()
     except Exception:
         return ""
 
 
-def _safe_attr(locator: Locator | None, name: str) -> str:
-    if locator is None:
-        return ""
-    try:
-        return (locator.get_attribute(name) or "").strip()
-    except Exception:
-        return ""
-
-
-def _nav_wait_ms(timeout_ms: int, target_blank: bool) -> int:
-    if target_blank:
-        return timeout_ms
-    return min(timeout_ms, 10_000)
-
-
-def _page_wait_ms(timeout_ms: int, target_blank: bool) -> int:
-    if target_blank:
-        return timeout_ms
-    return min(timeout_ms, 5_000)
+def _safe_target_url(locator: Locator | None) -> str:
+    for attr in ("href", "data-href", "data-url"):
+        value = _safe_attr(locator, attr)
+        if value:
+            return value
+    return ""
 
 
 def _wait_for_new_page(context: BrowserContext, before_pages: set[Page], timeout_ms: int) -> Page | None:
-    deadline = time.monotonic() + (timeout_ms / 1000.0)
+    deadline = time.monotonic() + timeout_ms / 1000
     while time.monotonic() < deadline:
         extra_pages = [candidate for candidate in context.pages if candidate not in before_pages]
         if extra_pages:
             return extra_pages[-1]
-        time.sleep(0.2)
-    extra_pages = [candidate for candidate in context.pages if candidate not in before_pages]
-    return extra_pages[-1] if extra_pages else None
+        time.sleep(0.1)
+    return None
 
 
 def click_card_cta(
@@ -54,7 +40,9 @@ def click_card_cta(
     cta: Locator | None,
     timeout_ms: int,
 ) -> ClickResult:
-    source_href = _safe_href(cta)
+    source_href = _safe_target_url(cta)
+    target_blank = _safe_attr(cta, "target").lower() == "_blank"
+    data_href = _safe_attr(cta, "data-href")
 
     if cta is None:
         return ClickResult(
@@ -71,20 +59,14 @@ def click_card_cta(
     except Exception:
         pass
 
-    target_blank = _safe_attr(cta, "target").lower() == "_blank"
     before_url = page.url
     before_pages = set(context.pages)
     new_page = None
-    nav_wait_ms = _nav_wait_ms(timeout_ms, target_blank)
-    page_wait_ms = _page_wait_ms(timeout_ms, target_blank)
 
     try:
-        expect_popup = page.expect_popup if target_blank else context.expect_page
-        with expect_popup(timeout=page_wait_ms) as new_page_info:
-            cta.click(timeout=timeout_ms)
-        new_page = new_page_info.value
+        cta.click(timeout=timeout_ms)
     except PlaywrightTimeoutError:
-        new_page = _wait_for_new_page(context, before_pages, nav_wait_ms)
+        new_page = _wait_for_new_page(context, before_pages, timeout_ms)
     except Error as exc:
         return ClickResult(
             status=STATUS_BUTTON_NOT_CLICKABLE,
@@ -95,16 +77,32 @@ def click_card_cta(
             product_error=True,
         )
 
+    if target_blank and new_page is None:
+        new_page = _wait_for_new_page(context, before_pages, min(timeout_ms, 3_000))
+
+    if new_page is None and target_blank and source_href:
+        return ClickResult(
+            status="Успешно",
+            error="",
+            clicked_url=source_href,
+            transition_type="new_tab",
+            source_href=source_href,
+            product_error=False,
+        )
+
+    if new_page is None and data_href:
+        return ClickResult(
+            status="Успешно",
+            error="",
+            clicked_url=data_href,
+            transition_type="popup",
+            source_href=source_href,
+            product_error=False,
+        )
+
     if new_page is not None:
         try:
-            new_page.wait_for_url(
-                lambda current_url: bool(current_url.strip()) and current_url.strip() != "about:blank",
-                timeout=nav_wait_ms,
-            )
-        except Exception:
-            pass
-        try:
-            new_page.wait_for_load_state("domcontentloaded", timeout=nav_wait_ms)
+            new_page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
         except Exception:
             pass
         clicked_url = (new_page.url or "").strip()
@@ -131,17 +129,7 @@ def click_card_cta(
         )
 
     try:
-        page.wait_for_url(
-            lambda current_url: bool(current_url.strip())
-            and current_url.strip() != before_url
-            and current_url.strip() != "about:blank",
-            timeout=nav_wait_ms,
-        )
-    except Exception:
-        pass
-
-    try:
-        page.wait_for_load_state("domcontentloaded", timeout=nav_wait_ms)
+        page.wait_for_load_state("domcontentloaded", timeout=min(timeout_ms, 3_000))
     except Exception:
         pass
 

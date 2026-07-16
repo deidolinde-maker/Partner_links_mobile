@@ -127,10 +127,13 @@ def detect_cards(page: Page, landing: LandingConfig) -> list[DetectedCard]:
                 for probe in (cta, candidate):
                     if probe is None:
                         continue
-                    try:
-                        source_href = (probe.get_attribute("href") or "").strip()
-                    except Exception:
-                        source_href = ""
+                    for attr in ("href", "data-href", "data-url"):
+                        try:
+                            source_href = (probe.get_attribute(attr) or "").strip()
+                        except Exception:
+                            source_href = ""
+                        if source_href:
+                            break
                     if source_href:
                         break
 

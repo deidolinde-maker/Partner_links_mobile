@@ -11,7 +11,6 @@ class LandingConfig:
     card_selectors: tuple[str, ...]
     title_selectors: tuple[str, ...]
     cta_selectors: tuple[str, ...]
-    click_timeout_ms: int | None = None
     comment: str = ""
 
 
@@ -170,8 +169,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://t2-ru.online/mobilnaya-svyaz",
         card_selectors=T2_CARD_SELECTORS,
         title_selectors=T2_TITLE_SELECTORS,
-        cta_selectors=("a.card-new__button.button-mobile-application", "a[href]", "button"),
-        click_timeout_ms=20_000,
+        cta_selectors=T2_CARD_SELECTORS + ("a[href]", "button"),
         comment="T2 main landing. Selectors reused from the reference project.",
     ),
     LandingConfig(
@@ -180,8 +178,7 @@ LANDINGS: tuple[LandingConfig, ...] = (
         url="https://t2-ru.online/sankt-peterburg/mobilnaya-svyaz",
         card_selectors=T2_CARD_SELECTORS,
         title_selectors=T2_TITLE_SELECTORS,
-        cta_selectors=("a.card-new__button.button-mobile-application", "a[href]", "button"),
-        click_timeout_ms=20_000,
+        cta_selectors=T2_CARD_SELECTORS + ("a[href]", "button"),
         comment="T2 Saint Petersburg landing. Selectors reused from the reference project.",
     ),
 )
